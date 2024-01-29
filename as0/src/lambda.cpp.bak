@@ -1,0 +1,29 @@
+#include <iostream>
+#include <concepts>
+using namespace std;
+
+template <typename T>
+concept is_integer = is_same_v<T, int>;
+
+template <is_integer T>
+struct Lambda {
+    int x = 0;
+    void operator() (T t) const {
+        cout << "Hello Lambda" << endl;
+    }
+};
+
+int main() {
+    cout << "Hello World" << endl;
+
+    Lambda<int> a;
+    a(1);
+
+    auto lambda = [=]() {
+        cout << "Hello Lambda 2" << endl;
+        a(1);
+    };
+    lambda();
+
+    return 0;
+}
