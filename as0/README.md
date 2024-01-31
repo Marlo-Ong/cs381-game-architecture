@@ -3,21 +3,24 @@
 In order to run this assignment:
 
 1. In a terminal, move into a directory that you want to copy this assignment in.
+2. Run the following command to clone this repository:
 
-1. Run the following command to clone this repository with applicable submodules:
+   > git clone https://github.com/Marlo-Ong/cs381-game-architecture.git
+   >
+3. Move into the as0 and fetch the raylib submodule:
 
-    > git clone --recursive https://github.com/Marlo-Ong/cs381-game-architecture.git
+   > cd cs381-game-architecture/as0
+   > git submodule update --init --recursive
+   >
+4. Create a build folder, move into it, and compile:
 
-1. Move into the as0 build folder and compile the as0.cpp file:
+   > mkdir build
+   > cd build
+   > cmake ..
+   > make
+   >
+5. If it compiled successfully (this may take a bit), an executable should be created, which you can run with the following command:
 
-    > cd as0/build
-
-    > cmake ..
-
-    > make
-
-1. If it compiled successfully, an executable should be created, which you can run with the following command:
-
-    > ./as0
-
-1. To enumerate your controls (if applicable): [NOT APPICABLE]
+   > ./as0
+   >
+6. To enumerate your controls (if applicable): [NOT APPICABLE]
