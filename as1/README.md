@@ -1,4 +1,4 @@
-**AS0: A Simple Window**
+**AS1: Ships and Planes**
 
 In order to run this assignment:
 
@@ -7,9 +7,9 @@ In order to run this assignment:
 
    > git clone https://github.com/Marlo-Ong/cs381-game-architecture.git
    >
-3. Move into the as0 and fetch the raylib submodule:
+3. Move into the as1 and fetch the raylib submodule:
 
-   > cd cs381-game-architecture/as0
+   > cd cs381-game-architecture/as1
 
    > git submodule update --init --recursive
 
@@ -25,6 +25,6 @@ In order to run this assignment:
 
 5. If it compiled successfully (this may take a bit), an executable should be created, which you can run with the following command:
 
-   > ./as0
+   > ./as1
 
 6. To enumerate your controls (if applicable): [NOT APPICABLE]
