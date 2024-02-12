@@ -30,7 +30,7 @@ int main() {
     plane.transform = raylib::Transform(plane.transform).Scale(3,3,3);
 
     // Free custom mesh (breadpack.glb) via SketchFab.com
-    raylib::Model bread("../meshes/breadPack.glb");
+    raylib::Model bread("../meshes/breadpack.glb");
     bread.transform = raylib::Transform(bread.transform).Scale(3,3,3);
 
     raylib::Camera camera(
