@@ -37,16 +37,18 @@ In order to run this assignment:
 
 - (WASD or arrow key format)
 
-- Press W/up arrow to move the plane away from the camera.
+- Press TAB to cycle through selectable planes.
 
-- Press A/left arrow to move the plane to the left.
+- Press W/up arrow to increase the selected plane's velocity.
 
-- Press S/down arrow to move the plane toward the camera.
+- Press S/down arrow to decrease the selected plane's velocity.
 
-- Press D/right arrow to move to plane to the right.
+- Press A/left arrow to turn the plane counter-clockwise.
 
-- Press Q to move the plane upward.
+- Press D/right arrow to turn the plane clockwise.
 
-- Press E to move the plane downward.
+- Press Q to move the selected plane upward.
 
-- Press SPACE to stop the plane's velocity.
+- Press E to move the selected plane downward.
+
+- Press SPACE to stop the selected plane.
