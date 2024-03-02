@@ -1,5 +1,7 @@
 #include "raylib-cpp.hpp"
-#include "../skybox/skybox.cpp"
+#include <concepts>
+#include <memory>
+#include <optional>
 
 template <typename T>
 concept Transformer = requires(T t, raylib::Transform m) {
@@ -21,102 +23,82 @@ void DrawModel(raylib::Model& model, Transformer auto transformer) {
     model.transform = backupTransform;
 }
 
-struct Plane {
-    float speed = 0, targetSpeed = 0;
-    float ySpeed = 0, targetYSpeed = 0;
-    raylib::Degree heading = 0, targetHeading = 0;
-    float acceleration = 30; // 60/30 = 2 seconds to turn
-    float speedUnits = 20.0f;
-    raylib::Vector3 position = {0,0,0};
-
-    Plane(){};
-
-    Plane(Vector3 newPosition) {
-        position = newPosition;
-    };
-
-    Plane(Vector3 newPosition, float newTargetSpeed, float newTargetYSpeed) {
-        position = newPosition;
-        targetSpeed = newTargetSpeed;
-        targetYSpeed = newTargetYSpeed;
-    };
-
-    Plane(const Plane& rhs) {
-        float speed = rhs.speed;
-        float targetSpeed = rhs.targetSpeed;
-        float ySpeed = rhs.ySpeed;
-        float targetYSpeed = rhs.targetYSpeed;
-        raylib::Degree heading = rhs.heading;
-        raylib::Degree targetHeading = rhs.targetHeading;
-        float acceleration = rhs.acceleration;
-        float speedUnits = rhs.speedUnits;
-        raylib::Vector3 position = rhs.position;
-    }
-
-    void Move(float deltaTime) {
-        raylib::Vector3 velocity = {speed * cos(heading.RadianValue()),     // x: speed * direction
-                                    ySpeed,                                 // y: up/down
-                                    -speed * sin(heading.RadianValue())};   // z: left hand orientation; must negate
-
-        // Clamp heading
-        float difference = abs(targetHeading - heading);
-        if (targetHeading > heading) {
-            if (difference < 180) heading += acceleration * deltaTime;
-            if (difference > 180) heading -= acceleration * deltaTime;
-        }
-        if (targetHeading < heading) {
-            if (difference > 180) heading += acceleration * deltaTime;
-            if (difference < 180) heading -= acceleration * deltaTime;
-        }
-
-        // Clamp speed
-        if (targetSpeed > speed) {
-            speed += acceleration * deltaTime;
-        }
-        if (targetSpeed < speed) {
-            speed -= acceleration * deltaTime;
-        }
-        if (targetYSpeed > ySpeed) {
-            ySpeed += acceleration * deltaTime;
-        }
-        if (targetYSpeed < ySpeed) {
-            ySpeed -= acceleration * deltaTime;
-        }
-
-        static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree { // constexpr: this variable only accessible at compile-time (local function)
-            int intpart = angle;
-            float floatpart = float(angle) - intpart; // get integer part of float degree to be able to modulo
-            intpart %= 360;                           // can return negative degree if less than -360
-            intpart += (intpart < 0) * 360;           // normalize -360:+360 to 0:360 -> if degree is negative, add 360
-        };
-
-        position += velocity * deltaTime;
-    }
-
-    void ResetVelocity() {
-        targetSpeed = 0;
-        targetYSpeed = 0;
-        speed = 0;
-        ySpeed = 0;
-    }
-};
-
-// ASSIGNMENT 4 START
 struct Component {
     Entity* object;
+
+    Component(struct Entity& e) : object(&e) {}
 
     virtual void setup() = 0;
     virtual void cleaup() = 0;
     virtual void tick(float dt) = 0;
 };
 
-struct Entity {
-    std::vector<std::unique_ptr<Component*>> components; // unique ptr tied to given component, deletes if component is deleted
+struct TransformComponent : public Component {
+    using Component::Component;
+    raylib::Vector3 position = {0,0,0};
+    raylib::Quaternion rotation = raylib::Quaternion::Identity();
 };
-// ASSIGNMENT 4 END
+
+struct Entity {
+    std::vector<std::unique_ptr<Component*>> components;
+    // unique ptr tied to given component, deletes if component is deleted
+
+    Entity() { AddComponent<TransformComponent>(); }
+    Entity(const Entity&) = delete;
+    Entity(Entity&& other) : components(std::move(other.components)) {
+        for (auto& c : components)
+            c->object = this;
+    }
+
+    template<std::derived_from<Component> T, typename... Ts>
+    size_t AddComponent(Ts... args) {
+        auto c = std::make_unique<T>(*this, std::forward<Ts>(args)...);
+        components.push_back(std::move(c));
+        return components.size() - 1;
+    }
+
+    template<std::derived_from<Component> T>
+    std::optional<std::reference_wrapper<T>> GetComponent() {
+        if constexpr(std::is_same_v<T, TransformComponent>) {
+            T* cast = dynamic_cast<T>(components[0].get());
+            if(cast) return *cast;
+        }
+
+        for(auto& c : components) {
+            T* cast = dynamic_cast<T>(c.get());
+            if(cast) return *cast;
+        }
+
+        return std::nullopt;
+    }
+
+    void tick(float dt) {
+        for(auto& c : components)
+            c->tick(dt);
+    }
+};
+
+struct RenderingComponent : public Component {
+    raylib::Model model; // assuming set on construction
+
+    void tick(float dt) override {
+        auto ref = object->GetComponent<TransformComponent>(); // try getting optional ref
+        if (!ref) return;                                      // if the component exists 
+        auto& transform = ref->get();                          // initialize reference
+
+        transform.position;
+        auto [axis, angle] = transform.rotation.ToAxisAngle(); // C++ unpacking, like (Python, tuples)
+        
+        model.Draw(transform.position, axis, angle);
+    }
+};
 
 int main() {
     raylib::Window window(600,400, "CS381 - Assignment 4");
+
+    std::vector<Entity> entities;
+    Entity& e = entities.emplace_back();
+    e.AddComponent<RenderingComponent>(raylib::Model("bad.obj"));
 
     // Load sky
     cs381::SkyBox skybox;

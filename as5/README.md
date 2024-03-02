@@ -1,4 +1,4 @@
-# AS4: Custom Ad Hoc Game
+# AS5: Audio GUI
 
 Authored by Marlo Ongkingco for CS381 (Game Engine Architecture)
 
@@ -11,9 +11,9 @@ In order to run this assignment:
 
    > git clone https://github.com/Marlo-Ong/cs381-game-architecture.git
    >
-3. Move into the as4 and fetch the raylib submodule:
+3. Move into the as5 and fetch the raylib submodule:
 
-   > cd cs381-game-architecture/as4
+   > cd cs381-game-architecture/as5
 
    > git submodule update --init --recursive
 
@@ -29,7 +29,7 @@ In order to run this assignment:
 
 5. If it compiled successfully (this may take a bit), an executable should be created, which you can run with the following command:
 
-   > ./as4
+   > ./as5
 
 6. Once the executable is run, a window should open, and there should be a plane object atop a grassy ground and a sky. Use your keyboard to control the plane according to the following:
 
