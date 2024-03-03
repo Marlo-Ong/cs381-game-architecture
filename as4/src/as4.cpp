@@ -15,21 +15,25 @@ struct Player {
     int numHitsDefault;
     int numHitsLeft;
     bool bust;
+    int money;
+    Color color;
 
-    Player(Rectangle r){
+    Player(Rectangle r, Color c){
         rect = r;
         speed = 0.5f;
         cardsValue = 0;
         numHitsDefault = 1;
         numHitsLeft = numHitsDefault;
         bust = false;
+        money = 0;
+        color = c;
     }
 };
 
 struct Card {
     Image sprite;
     Texture2D cardTexture;
-    Rectangle transform;    // the actual rect transform of the card
+    Rectangle rect;    // the actual rect rect of the card
     Rectangle source;       // rectangular crop of the image asset; does not change since using full picture
 
     bool connected;         // player is holding this card
@@ -48,7 +52,7 @@ struct Card {
         Reset();
     }
 
-    void Reveal() {
+    int Reveal() {
         // Assigns a random card suit/value and updates the texture //
 
         if (!faceUp) {
@@ -67,29 +71,33 @@ struct Card {
             string filepath = "../cards/card-" + randVal + "-" + randSuit + ".png";
             SetImageTexture(filepath);
             faceUp = true;
+
+            return value;
         }
+
+        return 0;
     }
 
     void Draw() {
-        //DrawRectangleRec(transform, BLUE);
+        //DrawRectangleRec(rect, BLUE);
 
         // Highlight color if player is moving card, else white
         Color colorHighlight = (connected) ? color : WHITE;
 
         DrawTexturePro(cardTexture,
                         source,
-                        transform,
+                        rect,
                         (Vector2){0, 0},
                         0.0,
                         colorHighlight);
     }
 
     void UpdatePosition(Vector2 pos) {
-        transform = (Rectangle){pos.x - source.width / 2, pos.y - source.width / 2, source.width, source.height};
+        rect = (Rectangle){pos.x - source.width / 2, pos.y - source.width / 2, source.width, source.height};
     }
 
-    bool isColliding(Rectangle rect) {
-        return CheckCollisionRecs(transform, rect);
+    bool isColliding(Rectangle rectB) {
+        return CheckCollisionRecs(rect, rectB);
     }
 
     void Reset() {
@@ -127,25 +135,45 @@ int main()
     raylib::Window window(screenWidth, screenHeight, "CS381 Assignment 4");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
 
+    // Player variables
+    Player player = Player((Rectangle){ 150, 250, 40, 40 }, RED);
+    Player bot = Player((Rectangle){ 150, -250, 40, 40 }, YELLOW);
+
     // Initialize cards
-    Card card1 = Card((Vector2){-0, 0}, BLUE);
-    card1.Reveal();
-    Card card2 = Card((Vector2){75, 150}, RED);
+
+    // Player cards
+    Card card1 = Card((Vector2){0, 150}, BLUE);
+    Card card2 = Card((Vector2){100, 150}, RED);
     Card card3 = Card((Vector2){10000, 10000}, GREEN); // "hit" card should not be seen until deck is clicked
     Card* cardHolding = nullptr;
+
+    // Player card slots
     float spacing = 150;
-    Rectangle cardSlot1 = {card1.startingPos.x - 45,
-                            card1.startingPos.y - 50,
-                            card1.transform.width - 10,
-                            card1.transform.height
+    Rectangle cardSlot1 = {-45, -20,
+                            card1.rect.width - 10,
+                            card1.rect.height
                         };
     Rectangle cardSlot2 = cardSlot1;
     cardSlot2.x += spacing;
     Rectangle cardSlot3 = cardSlot2;
     cardSlot3.x += spacing;
 
-    // Player variables
-    Player player = Player((Rectangle){ 150, 250, 40, 40 });
+    // Bot cards
+    Card botCard1 = Card((Vector2){0, -110}, WHITE);
+    bot.cardsValue += botCard1.Reveal();
+    Card botCard2 = Card((Vector2){botCard1.rect.x + spacing * (float)1.35, -110}, WHITE);
+    Card botCard3 = Card((Vector2){botCard2.rect.x + spacing * (float)1.35, -110}, WHITE); // "hit" card should not be seen until deck is clicked    Card* cardHolding = nullptr;
+
+    // Bot card slots
+    Rectangle botCardSlot1 = {botCard1.startingPos.x - 45,
+                            botCard1.startingPos.y - 50,
+                            botCard1.rect.width - 10,
+                            botCard1.rect.height
+                        };
+    Rectangle botCardSlot2 = botCardSlot1;
+    botCardSlot2.x += spacing;
+    Rectangle botCardSlot3 = botCardSlot2;
+    botCardSlot3.x += spacing;
 
     // Initialize camera
     raylib::Camera2D camera(
@@ -153,7 +181,7 @@ int main()
         raylib::Vector2(player.rect.x, player.rect.y)  // target
     );
     camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
-    camera.zoom = 1;
+    camera.zoom = 0.75;
 
     // Initialize timer
     float cardResetTimer = 10;
@@ -178,7 +206,7 @@ int main()
 
         // Check collision
         if (IsKeyPressed(KEY_SPACE)) {
-
+            
             if (CheckCollisionRecs(player.rect, deckRect) &&
                                     player.numHitsLeft > 0 &&
                                     !card3.faceUp &&
@@ -187,19 +215,18 @@ int main()
                 player.numHitsLeft--;
             }
 
+            else if (card1.isColliding(player.rect) && !card1.faceUp) {
+                if (card1.isColliding(cardSlot1)) player.cardsValue += card1.Reveal();
+                TryPickupCard(&cardHolding, &card1);
+            }
+
             else if (card2.isColliding(player.rect) && !card2.faceUp) {
-                if (card2.isColliding(cardSlot2)) {
-                    card2.Reveal();
-                    player.cardsValue += card2.value;
-                }
+                if (card2.isColliding(cardSlot2)) player.cardsValue += card2.Reveal();
                 TryPickupCard(&cardHolding, &card2);
             }
 
             else if (card3.isColliding(player.rect) && !card3.faceUp) {
-                if (card3.isColliding(cardSlot3)) {
-                    card3.Reveal();
-                    player.cardsValue += card3.value;
-                }
+                if (card3.isColliding(cardSlot3)) player.cardsValue += card3.Reveal();
                 TryPickupCard(&cardHolding, &card3);
             }
 
@@ -209,15 +236,38 @@ int main()
         // Update variables ----------------------------------------------------------------------------------
         timer -= window.GetFrameTime();
         timerText = (to_string(((int)timer)+1)).c_str(); // counts 10 to 1, converted to C string;
+        if (timer < 5.0 && 
+            !player.bust &&
+            (bot.cardsValue <= player.cardsValue)
+            ) {
+            bot.cardsValue += botCard2.Reveal();
+        }
+
+        if (timer < 2.0 && 
+            !player.bust &&
+            (bot.cardsValue <= player.cardsValue)
+            ) {
+            bot.cardsValue += botCard3.Reveal();
+        }
+
         if (timer <= 0) {
             card1.Reset();
-            card1.Reveal();
             card2.Reset();
             card3.Reset();
+
+            botCard1.Reset();
+            bot.cardsValue = botCard1.Reveal();
+            botCard2.Reset();
+            botCard3.Reset();
+
             timer = cardResetTimer;
             cardHolding = nullptr;
+
+            bot.numHitsLeft = bot.numHitsDefault;
+            bot.bust = false;
+
             player.numHitsLeft = player.numHitsDefault;
-            player.cardsValue = card1.value;
+            player.cardsValue = 0;
             player.bust = false;
         }
         if (cardHolding != nullptr){
@@ -234,9 +284,12 @@ int main()
                 window.ClearBackground(BLACK);
 
                 // Draw card slots
-                DrawRectangleLinesEx(cardSlot1, 2, card1.color);
+                DrawRectangleLinesEx(cardSlot1, 2, card1.color); // Player
                 DrawRectangleLinesEx(cardSlot2, 2, card2.color);
                 DrawRectangleLinesEx(cardSlot3, 2, card3.color);
+                DrawRectangleLinesEx(botCardSlot1, 2, WHITE);   // Bot
+                DrawRectangleLinesEx(botCardSlot2, 2, WHITE);
+                DrawRectangleLinesEx(botCardSlot3, 2, WHITE);
 
                 // Draw deck
                 DrawTexturePro(deckTexture, deckSource, deckRect, (Vector2){0,0}, 0, GRAY);
@@ -246,21 +299,32 @@ int main()
                         deckRect.y + 25,
                         50, WHITE);
 
-                // Draw player
-                DrawRectangleRec(player.rect, RED);
+                // Draw player(s)
+                DrawRectangleRec(player.rect, player.color);
+                DrawRectangleRec(bot.rect, bot.color);
 
                 // Draw cards
-                card1.Draw();
+                card1.Draw(); // Player
                 card2.Draw();
                 card3.Draw();
+                botCard1.Draw(); // Bot
+                botCard2.Draw();
+                botCard3.Draw();
             }
             camera.EndMode();
 
             // Draw info
-            DrawText(timerText, screenWidth / 100, screenHeight / 100, 50, WHITE);
-            string playerCardsValueText = "Value: " + to_string(player.cardsValue);
-            if (player.bust) playerCardsValueText += " (YOU BUSTED!)";
-            DrawText(playerCardsValueText.c_str(), screenWidth / 100, screenHeight / 100 + 50, 25, WHITE);
+            DrawText(timerText, window.GetWidth() / 2 - 50, screenHeight / 100, 100, RED);
+
+            // Player value
+            string playerCardsValueText = "Your Value: " + to_string(player.cardsValue);
+            if (player.bust) playerCardsValueText += " \n(YOU BUSTED!)";
+            DrawText(playerCardsValueText.c_str(), screenWidth / 100, screenHeight / 100, 25, WHITE);
+
+            // Bot value
+            string botCardsValueText = "Dealer Value: " + to_string(bot.cardsValue);
+            if (bot.bust) botCardsValueText += " \n(BOT BUSTED!)";
+            DrawText(botCardsValueText.c_str(), window.GetWidth() - 220, screenHeight / 100, 25, WHITE);
         }
         EndDrawing();
     }
