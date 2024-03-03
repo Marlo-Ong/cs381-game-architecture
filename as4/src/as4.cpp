@@ -9,16 +9,18 @@
 using namespace std;
 
 struct Card {
-    Image image;
+    Image sprite;
     Texture2D texture;
-    Rectangle bounding;
-    Rectangle source;
+    Rectangle transform;// the actual rect transform of the card
+    Rectangle source;   // rectangular crop of the image asset; does not change since using full picture
 
-    bool connected;
+    bool connected;     // player is holding this card
     Vector2 startingPos;
     int value;
     string suit;
-    string name;
+    string name;        // "value" of "suit"
+
+    Card(){}
 
     Card(Vector2 pos) {
         startingPos = pos;
@@ -39,32 +41,32 @@ struct Card {
 
         name = randVal + " of " + randSuit;
         string filepath = "../cards/card-" + randVal + "-" + randSuit + ".png";
-        image = LoadImage(filepath.c_str());
-        ImageResize(&image, 100, 100);
-        texture = LoadTextureFromImage(image);
-        UnloadImage(image);
+        sprite = LoadImage(filepath.c_str());
+        ImageResize(&sprite, 100, 100);
+        texture = LoadTextureFromImage(sprite);
+        UnloadImage(sprite);
     }
 
     void Draw() {
-        //DrawRectangleRec(bounding, BLUE);
+        DrawRectangleRec(transform, BLUE);
 
         // Highlight yellow if player is moving card, else white
         Color colorHighlight = (connected) ? YELLOW : WHITE;
 
         DrawTexturePro(texture,
                         source,
-                        bounding,
+                        transform,
                         (Vector2){0, 0},
                         0.0,
                         colorHighlight);
     }
 
     void UpdatePosition(Vector2 pos) {
-        bounding = (Rectangle){pos.x - source.width / 2, pos.y - source.width / 2, source.width, source.height};
+        transform = (Rectangle){pos.x - source.width / 2, pos.y - source.width / 2, source.width, source.height};
     }
 
     bool isColliding(Rectangle rect) {
-        return CheckCollisionRecs(bounding, rect);
+        return CheckCollisionRecs(transform, rect);
     }
 
     void Reset() {
@@ -75,50 +77,91 @@ struct Card {
     }
 };
 
+void TryPickupCard(Card** holder, Card* cardPicked) {
+    if ((*holder) != nullptr) {
+        (**holder).connected = false;
+        (*holder) = nullptr;
+    }
+    else {
+        (*holder) = cardPicked;
+        (*cardPicked).connected = true;
+    }
+}
+
 int main()
 {
-    raylib::Window window(600, 500, "CS381 Assignment 4");
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
-
+    // Initialize window
     int screenWidth = 600;
     int screenHeight = 500;
+    raylib::Window window(screenWidth, screenHeight, "CS381 Assignment 4");
+    SetWindowState(FLAG_WINDOW_RESIZABLE);
+
+    // Player variables
     Rectangle player = { 400, 280, 40, 40 };
+    float playerSpeed = 0.5f;
 
-    Card card1 = Card((Vector2){0, 0});
-    Card card2 = Card((Vector2){0, 0});
+    // Initialize cards
+    Card card1 = Card((Vector2){-100, 0});
+    Card card2 = Card((Vector2){100, 0});
+    Card card3 = Card((Vector2){10000, 10000}); // "hit" card should not be seen until deck is clicked
+    Card* cardHolding = nullptr;
 
+    // Initialize camera
     raylib::Camera2D camera(
         raylib::Vector2(0, 0),  // position
-        raylib::Vector2(player.x + 20.0f, player.y + 20.0f)  // target
+        raylib::Vector2(player.x, player.y)  // target
     );
     camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
     camera.zoom = 1;
 
+    // Initialize timer
     float cardResetTimer = 10;
     float timer = cardResetTimer;
+    const char* timerText = "10";
+
+    // Initialize deck
+    Image deckSprite = LoadImage("../icons/stack.png");
+    ImageResize(&deckSprite, 100, 100);
+    Texture2D deckTexture = LoadTextureFromImage(deckSprite);
+    UnloadImage(deckSprite);
+    Rectangle deckSource = { 0, 0, (float)deckTexture.width, (float)deckTexture.height };
+    Rectangle deckRect = { 100, 100, deckSource.width, deckSource.height };
 
     while (!WindowShouldClose())
     {
         // Player movement ----------------------------------------------------------------------------------
-        if (IsKeyDown(KEY_RIGHT)) player.x += 2;
-        else if (IsKeyDown(KEY_LEFT)) player.x -= 2;
-        else if (IsKeyDown(KEY_UP)) player.y -= 2;
-        else if (IsKeyDown(KEY_DOWN)) player.y += 2;
+        if (IsKeyDown(KEY_RIGHT)) player.x += playerSpeed;
+        else if (IsKeyDown(KEY_LEFT)) player.x -= playerSpeed;
+        else if (IsKeyDown(KEY_UP)) player.y -= playerSpeed;
+        else if (IsKeyDown(KEY_DOWN)) player.y += playerSpeed;
         if (IsKeyPressed(KEY_ENTER)) {
-            if (card1.isColliding(player)) {
-                card1.connected = !card1.connected;
+            if (CheckCollisionRecs(player, deckRect)) {
+                TryPickupCard(&cardHolding, &card3);
+            }
+            else if (card1.isColliding(player)) {
+                TryPickupCard(&cardHolding, &card1);
+            }
+            else if (card2.isColliding(player)) {
+                TryPickupCard(&cardHolding, &card2);
+            }
+            else if (card3.isColliding(player)) {
+                TryPickupCard(&cardHolding, &card3);
             }
         }
 
         // Update variables ----------------------------------------------------------------------------------
-        //timer -= window.GetFrameTime();
-        // if (timer <= 0) {
-        //     card1.Reset();
-        //     card2.Reset();
-        //     timer = cardResetTimer;
-        // }
-
-        if (card1.connected) card1.UpdatePosition((Vector2){player.x, player.y});
+        timer -= window.GetFrameTime();
+        timerText = (to_string(((int)timer)+1)).c_str(); // counts 10 to 1, converted to C string;
+        if (timer <= 0) {
+            card1.Reset();
+            card2.Reset();
+            card3.Reset();
+            timer = cardResetTimer;
+            cardHolding = nullptr;
+        }
+        if (cardHolding != nullptr){
+            (*cardHolding).UpdatePosition((Vector2){player.x, player.y});
+        }
 
 
         // Draw ----------------------------------------------------------------------------------
@@ -127,14 +170,28 @@ int main()
         {
             camera.BeginMode();
             {
-                window.ClearBackground(GRAY);
+                window.ClearBackground(BLACK);
 
-                DrawRectangle(0,0,200,200,YELLOW);
+                // Draw card slots
+                DrawRectangleLines(card1.startingPos.x - 50,
+                                    card1.startingPos.y - 50,
+                                    card1.transform.width - 15,
+                                    card1.transform.height,
+                                    BLUE);
+
+                // Draw deck
+                DrawTexturePro(deckTexture,deckSource, deckRect, (Vector2){0,0}, 0, WHITE);
+
+                // Draw player
                 DrawRectangleRec(player, RED);
-                card1.Draw();
 
+                // Draw cards
+                card1.Draw();
+                card2.Draw();
+                card3.Draw();
             }
             camera.EndMode();
+            DrawText(timerText, screenWidth / 100, screenHeight / 100, 50, WHITE);
         }
         EndDrawing();
     }
