@@ -17,6 +17,7 @@ struct Player {
     bool bust;
     int money;
     Color color;
+    int wins;
 
     Player(Rectangle r, Color c){
         rect = r;
@@ -27,6 +28,7 @@ struct Player {
         bust = false;
         money = 0;
         color = c;
+        wins = 0;
     }
 };
 
@@ -254,6 +256,9 @@ int main()
         if (timer < 3.0) TryPlayBotCard(botCard3, player, bot);
         
         if (timer <= 0) {
+            if (player.cardsValue > bot.cardsValue && !player.bust) player.wins++;
+            else bot.wins++;
+
             card1.Reset();
             card2.Reset();
             card3.Reset();
@@ -321,13 +326,21 @@ int main()
 
             // Player value
             string playerCardsValueText = "Your Value: " + to_string(player.cardsValue);
-            if (player.bust) playerCardsValueText += " \n(YOU BUSTED!)";
+            if (player.bust) playerCardsValueText += " \n\nYOU BUSTED!)";
             DrawText(playerCardsValueText.c_str(), screenWidth / 100, screenHeight / 100, 25, WHITE);
+
+            // Player wins
+            string playerWinsText = "Wins: " + to_string(player.wins);
+            DrawText(playerWinsText.c_str(), screenWidth / 100, screenHeight / 100 + 30, 25, WHITE);
 
             // Bot value
             string botCardsValueText = "Dealer Value: " + to_string(bot.cardsValue);
-            if (bot.bust) botCardsValueText += " \n(BOT BUSTED!)";
+            if (bot.bust) botCardsValueText += " \n\n(BOT BUSTED!)";
             DrawText(botCardsValueText.c_str(), window.GetWidth() - 220, screenHeight / 100, 25, WHITE);
+
+            // Bot wins
+            string botWinsText = "Wins: " + to_string(bot.wins);
+            DrawText(botWinsText.c_str(), window.GetWidth() - 110, screenHeight / 100 + 30, 25, WHITE);
         }
         EndDrawing();
     }
