@@ -8,6 +8,24 @@
 #include <format>
 using namespace std;
 
+struct Player {
+    Rectangle rect;
+    float speed;
+    int cardsValue;
+    int numHitsDefault;
+    int numHitsLeft;
+    bool bust;
+
+    Player(Rectangle r){
+        rect = r;
+        speed = 0.5f;
+        cardsValue = 0;
+        numHitsDefault = 1;
+        numHitsLeft = numHitsDefault;
+        bust = false;
+    }
+};
+
 struct Card {
     Image sprite;
     Texture2D cardTexture;
@@ -20,11 +38,13 @@ struct Card {
     int value;
     string suit;
     string name;            // "value" of "suit"
+    Color color;
 
     Card(){}
 
-    Card(Vector2 pos) {
+    Card(Vector2 pos, Color newColor) {
         startingPos = pos;
+        color = newColor;
         Reset();
     }
 
@@ -53,8 +73,8 @@ struct Card {
     void Draw() {
         //DrawRectangleRec(transform, BLUE);
 
-        // Highlight yellow if player is moving card, else white
-        Color colorHighlight = (connected) ? YELLOW : WHITE;
+        // Highlight color if player is moving card, else white
+        Color colorHighlight = (connected) ? color : WHITE;
 
         DrawTexturePro(cardTexture,
                         source,
@@ -108,34 +128,37 @@ int main()
     SetWindowState(FLAG_WINDOW_RESIZABLE);
 
     // Initialize cards
-    Card card1 = Card((Vector2){-100, 0});
+    Card card1 = Card((Vector2){-0, 0}, BLUE);
     card1.Reveal();
-    Card card2 = Card((Vector2){100, 0});
-    Card card3 = Card((Vector2){10000, 10000}); // "hit" card should not be seen until deck is clicked
+    Card card2 = Card((Vector2){75, 150}, RED);
+    Card card3 = Card((Vector2){10000, 10000}, GREEN); // "hit" card should not be seen until deck is clicked
     Card* cardHolding = nullptr;
-    Rectangle cardSlot = {card1.startingPos.x - 50,
+    float spacing = 150;
+    Rectangle cardSlot1 = {card1.startingPos.x - 45,
                             card1.startingPos.y - 50,
-                            card1.transform.width - 15,
-                            card1.transform.height,
+                            card1.transform.width - 10,
+                            card1.transform.height
                         };
+    Rectangle cardSlot2 = cardSlot1;
+    cardSlot2.x += spacing;
+    Rectangle cardSlot3 = cardSlot2;
+    cardSlot3.x += spacing;
 
     // Player variables
-    Rectangle player = { 400, 280, 40, 40 };
-    float playerSpeed = 0.5f;
-    int playerCardsValue = card1.value;
+    Player player = Player((Rectangle){ 150, 250, 40, 40 });
 
     // Initialize camera
     raylib::Camera2D camera(
         raylib::Vector2(0, 0),  // position
-        raylib::Vector2(player.x, player.y)  // target
+        raylib::Vector2(player.rect.x, player.rect.y)  // target
     );
     camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
     camera.zoom = 1;
 
     // Initialize timer
-    float cardResetTimer = 20;
+    float cardResetTimer = 10;
     float timer = cardResetTimer;
-    const char* timerText = "10";
+    const char* timerText;
 
     // Initialize deck
     Image deckSprite = LoadImage("../icons/stack.png");
@@ -143,42 +166,44 @@ int main()
     Texture2D deckTexture = LoadTextureFromImage(deckSprite);
     UnloadImage(deckSprite);
     Rectangle deckSource = { 0, 0, (float)deckTexture.width, (float)deckTexture.height };
-    Rectangle deckRect = { 100, 100, deckSource.width, deckSource.height };
+    Rectangle deckRect = { 200, 100, deckSource.width, deckSource.height };
 
     while (!WindowShouldClose())
     {
         // Player movement ----------------------------------------------------------------------------------
-        if (IsKeyDown(KEY_RIGHT)) player.x += playerSpeed;
-        else if (IsKeyDown(KEY_LEFT)) player.x -= playerSpeed;
-        else if (IsKeyDown(KEY_UP)) player.y -= playerSpeed;
-        else if (IsKeyDown(KEY_DOWN)) player.y += playerSpeed;
+        if (IsKeyDown(KEY_RIGHT)) player.rect.x += player.speed;
+        else if (IsKeyDown(KEY_LEFT)) player.rect.x -= player.speed;
+        else if (IsKeyDown(KEY_UP)) player.rect.y -= player.speed;
+        else if (IsKeyDown(KEY_DOWN)) player.rect.y += player.speed;
 
         // Check collision
-        if (IsKeyPressed(KEY_ENTER)) {
-            if (CheckCollisionRecs(player, deckRect)) {
+        if (IsKeyPressed(KEY_SPACE)) {
+
+            if (CheckCollisionRecs(player.rect, deckRect) &&
+                                    player.numHitsLeft > 0 &&
+                                    !card3.faceUp &&
+                                    !player.bust) {
+                TryPickupCard(&cardHolding, &card3);
+                player.numHitsLeft--;
+            }
+
+            else if (card2.isColliding(player.rect) && !card2.faceUp) {
+                if (card2.isColliding(cardSlot2)) {
+                    card2.Reveal();
+                    player.cardsValue += card2.value;
+                }
+                TryPickupCard(&cardHolding, &card2);
+            }
+
+            else if (card3.isColliding(player.rect) && !card3.faceUp) {
+                if (card3.isColliding(cardSlot3)) {
+                    card3.Reveal();
+                    player.cardsValue += card3.value;
+                }
                 TryPickupCard(&cardHolding, &card3);
             }
-            else if (card1.isColliding(player)) {
-                TryPickupCard(&cardHolding, &card1);
-            }
-            else if (card2.isColliding(player)) {
-                if (card2.isColliding(cardSlot) && !card2.faceUp) {
-                    card2.Reveal();
-                    playerCardsValue += card2.value;
-                }
-                else {
-                    TryPickupCard(&cardHolding, &card2);
-                }
-            }
-            else if (card3.isColliding(player)) {
-                if (card3.isColliding(cardSlot) && !card3.faceUp) {
-                    card3.Reveal();
-                    playerCardsValue += card3.value;
-                }
-                else {
-                    TryPickupCard(&cardHolding, &card3);
-                }
-            }
+
+            player.bust = (player.cardsValue > 21);
         }
 
         // Update variables ----------------------------------------------------------------------------------
@@ -191,15 +216,17 @@ int main()
             card3.Reset();
             timer = cardResetTimer;
             cardHolding = nullptr;
-            playerCardsValue = card1.value;
+            player.numHitsLeft = player.numHitsDefault;
+            player.cardsValue = card1.value;
+            player.bust = false;
         }
         if (cardHolding != nullptr){
-            (*cardHolding).UpdatePosition((Vector2){player.x, player.y});
+            (*cardHolding).UpdatePosition((Vector2){player.rect.x, player.rect.y});
         }
 
 
         // Draw ----------------------------------------------------------------------------------
-        camera.target = (Vector2){ player.x, player.y };
+        camera.target = (Vector2){ player.rect.x, player.rect.y };
         BeginDrawing();
         {
             camera.BeginMode();
@@ -207,14 +234,20 @@ int main()
                 window.ClearBackground(BLACK);
 
                 // Draw card slots
-                //DrawRectangleLinesEx(cardSlot, 2, BLUE);
-                DrawRectangleRec(cardSlot, RED);
+                DrawRectangleLinesEx(cardSlot1, 2, card1.color);
+                DrawRectangleLinesEx(cardSlot2, 2, card2.color);
+                DrawRectangleLinesEx(cardSlot3, 2, card3.color);
 
                 // Draw deck
-                DrawTexturePro(deckTexture,deckSource, deckRect, (Vector2){0,0}, 0, WHITE);
+                DrawTexturePro(deckTexture, deckSource, deckRect, (Vector2){0,0}, 0, GRAY);
+                const char* cardsInDeck = (to_string(player.numHitsLeft)).c_str();
+                DrawText(cardsInDeck,
+                        deckRect.x + 42,
+                        deckRect.y + 25,
+                        50, WHITE);
 
                 // Draw player
-                DrawRectangleRec(player, RED);
+                DrawRectangleRec(player.rect, RED);
 
                 // Draw cards
                 card1.Draw();
@@ -222,9 +255,12 @@ int main()
                 card3.Draw();
             }
             camera.EndMode();
+
+            // Draw info
             DrawText(timerText, screenWidth / 100, screenHeight / 100, 50, WHITE);
-            string playerCardsValueText = "Your card value: " + to_string(playerCardsValue);
-            DrawText(playerCardsValueText.c_str(), screenWidth / 100, screenHeight / 100 + 50, 50, WHITE);
+            string playerCardsValueText = "Value: " + to_string(player.cardsValue);
+            if (player.bust) playerCardsValueText += " (YOU BUSTED!)";
+            DrawText(playerCardsValueText.c_str(), screenWidth / 100, screenHeight / 100 + 50, 25, WHITE);
         }
         EndDrawing();
     }
