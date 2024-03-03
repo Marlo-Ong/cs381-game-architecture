@@ -1,248 +1,142 @@
+// Author: Marlo Ongkingco
+// CS381 Game Engine Architecture
+// AS4 Ad-Hoc Game: Stupid Blackjack
+
 #include "raylib-cpp.hpp"
-#include "../skybox/skybox.cpp"
+#include <iostream>
+#include <string>
+#include <format>
+using namespace std;
 
-template <typename T>
-concept Transformer = requires(T t, raylib::Transform m) {
-    { t.operator()(m) } -> std::convertible_to<raylib::Transform>;
-};
+struct Card {
+    Image image;
+    Texture2D texture;
+    Rectangle bounding;
+    Rectangle source;
 
-void DrawBoundedModel(raylib::Model& model, Transformer auto transformer) {
-    raylib::Transform backupTransform = model.transform;
-    model.transform = transformer(backupTransform);
-    model.Draw({});
-    model.GetTransformedBoundingBox().Draw();
-    model.transform = backupTransform;
-}
+    bool connected;
+    Vector2 startingPos;
+    int value;
+    string suit;
+    string name;
 
-void DrawModel(raylib::Model& model, Transformer auto transformer) {
-    raylib::Transform backupTransform = model.transform;
-    model.transform = transformer(backupTransform);
-    model.Draw({});
-    model.transform = backupTransform;
-}
-
-struct Plane {
-    float speed = 0, targetSpeed = 0;
-    float ySpeed = 0, targetYSpeed = 0;
-    raylib::Degree heading = 0, targetHeading = 0;
-    float acceleration = 30; // 60/30 = 2 seconds to turn
-    float speedUnits = 20.0f;
-    raylib::Vector3 position = {0,0,0};
-
-    Plane(){};
-
-    Plane(Vector3 newPosition) {
-        position = newPosition;
-    };
-
-    Plane(Vector3 newPosition, float newTargetSpeed, float newTargetYSpeed) {
-        position = newPosition;
-        targetSpeed = newTargetSpeed;
-        targetYSpeed = newTargetYSpeed;
-    };
-
-    Plane(const Plane& rhs) {
-        float speed = rhs.speed;
-        float targetSpeed = rhs.targetSpeed;
-        float ySpeed = rhs.ySpeed;
-        float targetYSpeed = rhs.targetYSpeed;
-        raylib::Degree heading = rhs.heading;
-        raylib::Degree targetHeading = rhs.targetHeading;
-        float acceleration = rhs.acceleration;
-        float speedUnits = rhs.speedUnits;
-        raylib::Vector3 position = rhs.position;
+    Card(Vector2 pos) {
+        startingPos = pos;
+        Reset();
     }
 
-    void Move(float deltaTime) {
-        raylib::Vector3 velocity = {speed * cos(heading.RadianValue()),     // x: speed * direction
-                                    ySpeed,                                 // y: up/down
-                                    -speed * sin(heading.RadianValue())};   // z: left hand orientation; must negate
+    void AssignRandomCard() {
+        string suits[4] = {"hearts", "spades", "diamonds", "clubs"};
+        string values[13] = {"ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king"};
+        int valuesInt[13] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10};
+    
+        string randSuit = suits[GetRandomValue(0, 3)];
+        suit = randSuit;
 
-        // Clamp heading
-        float difference = abs(targetHeading - heading);
-        if (targetHeading > heading) {
-            if (difference < 180) heading += acceleration * deltaTime;
-            if (difference > 180) heading -= acceleration * deltaTime;
-        }
-        if (targetHeading < heading) {
-            if (difference > 180) heading += acceleration * deltaTime;
-            if (difference < 180) heading -= acceleration * deltaTime;
-        }
+        int randValIndex = GetRandomValue(0, 12);
+        string randVal = values[randValIndex];
+        value = valuesInt[randValIndex];
 
-        // Clamp speed
-        if (targetSpeed > speed) {
-            speed += acceleration * deltaTime;
-        }
-        if (targetSpeed < speed) {
-            speed -= acceleration * deltaTime;
-        }
-        if (targetYSpeed > ySpeed) {
-            ySpeed += acceleration * deltaTime;
-        }
-        if (targetYSpeed < ySpeed) {
-            ySpeed -= acceleration * deltaTime;
-        }
-
-        static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree { // constexpr: this variable only accessible at compile-time (local function)
-            int intpart = angle;
-            float floatpart = float(angle) - intpart; // get integer part of float degree to be able to modulo
-            intpart %= 360;                           // can return negative degree if less than -360
-            intpart += (intpart < 0) * 360;           // normalize -360:+360 to 0:360 -> if degree is negative, add 360
-        };
-
-        position += velocity * deltaTime;
+        name = randVal + " of " + randSuit;
+        string filepath = "../cards/card-" + randVal + "-" + randSuit + ".png";
+        image = LoadImage(filepath.c_str());
+        ImageResize(&image, 100, 100);
+        texture = LoadTextureFromImage(image);
+        UnloadImage(image);
     }
 
-    void ResetVelocity() {
-        targetSpeed = 0;
-        targetYSpeed = 0;
-        speed = 0;
-        ySpeed = 0;
+    void Draw() {
+        //DrawRectangleRec(bounding, BLUE);
+
+        // Highlight yellow if player is moving card, else white
+        Color colorHighlight = (connected) ? YELLOW : WHITE;
+
+        DrawTexturePro(texture,
+                        source,
+                        bounding,
+                        (Vector2){0, 0},
+                        0.0,
+                        colorHighlight);
+    }
+
+    void UpdatePosition(Vector2 pos) {
+        bounding = (Rectangle){pos.x - source.width / 2, pos.y - source.width / 2, source.width, source.height};
+    }
+
+    bool isColliding(Rectangle rect) {
+        return CheckCollisionRecs(bounding, rect);
+    }
+
+    void Reset() {
+        connected = false;
+        AssignRandomCard();
+        source = { 0, 0, (float)texture.width, (float)texture.height };
+        UpdatePosition(startingPos);
     }
 };
 
-// ASSIGNMENT 4 START
-struct Component {
-    Entity* object;
+int main()
+{
+    raylib::Window window(600, 500, "CS381 Assignment 4");
+    SetWindowState(FLAG_WINDOW_RESIZABLE);
 
-    virtual void setup() = 0;
-    virtual void cleaup() = 0;
-    virtual void tick(float dt) = 0;
-};
+    int screenWidth = 600;
+    int screenHeight = 500;
+    Rectangle player = { 400, 280, 40, 40 };
 
-struct Entity {
-    std::vector<std::unique_ptr<Component*>> components; // unique ptr tied to given component, deletes if component is deleted
-};
-// ASSIGNMENT 4 END
+    Card card1 = Card((Vector2){0, 0});
+    Card card2 = Card((Vector2){0, 0});
 
-int main() {
-    raylib::Window window(600,400, "CS381 - Assignment 4");
-
-    // Load sky
-    cs381::SkyBox skybox;
-    skybox.Load("../textures/skybox.png");
-
-    // Load ground
-    auto mesh = raylib::Mesh::Plane(10'000, 10'000, 50, 50, 25);
-    raylib::Model ground = ((raylib::Mesh*)&mesh)->LoadModelFrom();
-    raylib::Texture grass("../textures/grass.jpg");
-    grass.SetFilter(TEXTURE_FILTER_BILINEAR);
-    grass.SetWrap(TEXTURE_WRAP_REPEAT);
-    ground.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = grass;
-
-    // Load planes
-    raylib::Model planeModel;
-    planeModel.Load("../meshes/PolyPlane.glb");
-    planeModel.transform = raylib::Transform(planeModel.transform).Scale(3,3,3);
-
-    int numPlanes = 3;
-    Plane plane1 = Plane({0,0,0});
-    Plane plane2 = Plane({100,0,100});
-    Plane plane3 = Plane({-100,0,-100});
-
-    Plane* selectedPlane = &plane1;
-    int planeSelector = 1;
-
-    // EXTRA CREDIT: Load custom mesh: BREAD PACK
-    raylib::Model bread("../meshes/breadpack.glb");
-    bread.transform = raylib::Transform(bread.transform).Scale(5,5,5).RotateZ(raylib::Degree(180));
-    Plane bread1 = Plane({100,0,-100}, 5, 2);
-    bread1.heading = 60;
-
-    // Load camera
-    raylib::Camera camera(
-        raylib::Vector3(0, 120,-400),  // position
-        raylib::Vector3(0, 0, 300),  // target
-        raylib::Vector3(0, 1, 0),     // up
-        45.0f,                        // fov
-        CAMERA_PERSPECTIVE            // projection
+    raylib::Camera2D camera(
+        raylib::Vector2(0, 0),  // position
+        raylib::Vector2(player.x + 20.0f, player.y + 20.0f)  // target
     );
+    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
+    camera.zoom = 1;
 
-    // EXTRA CREDIT: Play audio (wind howling, plane noises)
-    InitAudioDevice();
-    raylib::Sound mus_PlaneBG("../audio/air-raid.mp3");
-    raylib::Sound sfx_PlaneFlap("../audio/flap.wav");
-    mus_PlaneBG.Play();
+    float cardResetTimer = 10;
+    float timer = cardResetTimer;
 
-    while (!window.ShouldClose()) {
-        window.BeginDrawing();
+    while (!WindowShouldClose())
+    {
+        // Player movement ----------------------------------------------------------------------------------
+        if (IsKeyDown(KEY_RIGHT)) player.x += 2;
+        else if (IsKeyDown(KEY_LEFT)) player.x -= 2;
+        else if (IsKeyDown(KEY_UP)) player.y -= 2;
+        else if (IsKeyDown(KEY_DOWN)) player.y += 2;
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (card1.isColliding(player)) {
+                card1.connected = !card1.connected;
+            }
+        }
+
+        // Update variables ----------------------------------------------------------------------------------
+        //timer -= window.GetFrameTime();
+        // if (timer <= 0) {
+        //     card1.Reset();
+        //     card2.Reset();
+        //     timer = cardResetTimer;
+        // }
+
+        if (card1.connected) card1.UpdatePosition((Vector2){player.x, player.y});
+
+
+        // Draw ----------------------------------------------------------------------------------
+        camera.target = (Vector2){ player.x, player.y };
+        BeginDrawing();
         {
             camera.BeginMode();
             {
-                window.ClearBackground(raylib::Color::Red());
-                skybox.Draw();
-                ground.Draw({0,0,0});
-                bread.Draw(bread1.position);
+                window.ClearBackground(GRAY);
 
-                plane1.Move(window.GetFrameTime());
-                plane2.Move(window.GetFrameTime());
-                plane3.Move(window.GetFrameTime());
-                bread1.Move(window.GetFrameTime());
+                DrawRectangle(0,0,200,200,YELLOW);
+                DrawRectangleRec(player, RED);
+                card1.Draw();
 
-                switch (planeSelector) {
-                    case 1:
-                        DrawBoundedModel(planeModel, [&](raylib::Transform t) -> raylib::Transform{
-                            return t.Translate(plane1.position).RotateY(plane1.heading);
-                        });
-                        planeModel.Draw(plane2.position);
-                        planeModel.Draw(plane3.position);
-                        break;
-                    case 2:
-                        DrawBoundedModel(planeModel, [&](raylib::Transform t) -> raylib::Transform{
-                            return t.Translate(plane2.position).RotateY(plane2.heading);
-                        });
-                        planeModel.Draw(plane1.position);
-                        planeModel.Draw(plane3.position);
-                        break;
-                    case 0:
-                        DrawBoundedModel(planeModel, [&](raylib::Transform t) -> raylib::Transform{
-                            return t.Translate(plane3.position).RotateY(plane3.heading);
-                        });
-                        planeModel.Draw(plane1.position);
-                        planeModel.Draw(plane2.position);
-                        break;
-                }
-
-                // Controls
-                if (GetKeyPressed()) sfx_PlaneFlap.Play();
-                if (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP)) (*selectedPlane).targetSpeed += (*selectedPlane).speedUnits;
-                if (IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN)) (*selectedPlane).targetSpeed -= (*selectedPlane).speedUnits;
-                if (IsKeyPressed(KEY_A) || IsKeyPressed(KEY_LEFT)) (*selectedPlane).targetHeading += (*selectedPlane).speedUnits;
-                if (IsKeyPressed(KEY_D) || IsKeyPressed(KEY_RIGHT)) (*selectedPlane).targetHeading -= (*selectedPlane).speedUnits;
-
-                if (IsKeyPressed(KEY_SPACE)) {
-                    (*selectedPlane).ResetVelocity();
-                }
-
-                // Select plane
-                if (IsKeyPressed(KEY_TAB)) {
-                    planeSelector += 1;
-                    planeSelector %= numPlanes;
-
-                    switch (planeSelector) {
-                        case 1:
-                            selectedPlane = &plane1;
-                            break;
-                        case 2:
-                            selectedPlane = &plane2;
-                            break;
-                        case 0:
-                            selectedPlane = &plane3;
-                            break;
-                    }
-                }
-                
-                // EXTRA CREDIT: Allow plane to fly (y-axis movement)
-                if (IsKeyPressed(KEY_Q)) (*selectedPlane).targetYSpeed += (*selectedPlane).speedUnits;
-                if (IsKeyPressed(KEY_E)) (*selectedPlane).targetYSpeed -= (*selectedPlane).speedUnits;
-
-                // EXTRA CREDIT: Camera pans toward target (plane)
-                camera.SetTarget((*selectedPlane).position);
             }
             camera.EndMode();
-            DrawFPS(0,0);
         }
-        window.EndDrawing();
+        EndDrawing();
     }
 
     return 0;
