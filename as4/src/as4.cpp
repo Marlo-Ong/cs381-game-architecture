@@ -22,7 +22,7 @@ struct Player {
         rect = r;
         speed = 0.5f;
         cardsValue = 0;
-        numHitsDefault = 1;
+        numHitsDefault = 3;
         numHitsLeft = numHitsDefault;
         bust = false;
         money = 0;
@@ -116,6 +116,16 @@ struct Card {
     }
 };
 
+void TryPlayBotCard(Card& card, Player& player, Player& bot) {
+    if (!player.bust &&
+        bot.cardsValue != 21 &&
+        bot.cardsValue < player.cardsValue) {
+
+        bot.cardsValue += card.Reveal();
+        bot.bust = (bot.cardsValue > 21);
+    }
+}
+
 void TryPickupCard(Card** holder, Card* cardPicked) {
     if ((*holder) != nullptr) {
         (**holder).connected = false;
@@ -142,8 +152,8 @@ int main()
     // Initialize cards
 
     // Player cards
-    Card card1 = Card((Vector2){0, 150}, BLUE);
-    Card card2 = Card((Vector2){100, 150}, RED);
+    Card card1 = Card((Vector2){10000, 10000}, BLUE);
+    Card card2 = Card((Vector2){10000, 10000}, RED);
     Card card3 = Card((Vector2){10000, 10000}, GREEN); // "hit" card should not be seen until deck is clicked
     Card* cardHolding = nullptr;
 
@@ -208,10 +218,12 @@ int main()
         if (IsKeyPressed(KEY_SPACE)) {
             
             if (CheckCollisionRecs(player.rect, deckRect) &&
+                                    cardHolding == nullptr &&
                                     player.numHitsLeft > 0 &&
-                                    !card3.faceUp &&
                                     !player.bust) {
-                TryPickupCard(&cardHolding, &card3);
+                if (!card1.faceUp) TryPickupCard(&cardHolding, &card1);
+                else if (!card2.faceUp) TryPickupCard(&cardHolding, &card2);
+                else if (!card3.faceUp) TryPickupCard(&cardHolding, &card3);
                 player.numHitsLeft--;
             }
 
@@ -236,20 +248,11 @@ int main()
         // Update variables ----------------------------------------------------------------------------------
         timer -= window.GetFrameTime();
         timerText = (to_string(((int)timer)+1)).c_str(); // counts 10 to 1, converted to C string;
-        if (timer < 5.0 && 
-            !player.bust &&
-            (bot.cardsValue <= player.cardsValue)
-            ) {
-            bot.cardsValue += botCard2.Reveal();
-        }
 
-        if (timer < 2.0 && 
-            !player.bust &&
-            (bot.cardsValue <= player.cardsValue)
-            ) {
-            bot.cardsValue += botCard3.Reveal();
-        }
-
+        // Make bot decision to play card
+        if (timer < 6.0) TryPlayBotCard(botCard2, player, bot);
+        if (timer < 3.0) TryPlayBotCard(botCard3, player, bot);
+        
         if (timer <= 0) {
             card1.Reset();
             card2.Reset();
