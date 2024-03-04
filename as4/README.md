@@ -1,4 +1,4 @@
-# AS4: Custom Ad Hoc Game
+# AS4: Custom Ad Hoc Game: BLACKJACK!
 
 Authored by Marlo Ongkingco for CS381 (Game Engine Architecture)
 
@@ -31,24 +31,33 @@ In order to run this assignment:
 
    > ./as4
 
-6. Once the executable is run, a window should open, and there should be a plane object atop a grassy ground and a sky. Use your keyboard to control the plane according to the following:
+6. Once the executable is run, a window should open to the title screen.
 
 ## Controls
 
-- (WASD or arrow key format)
+- Use directional arrow keys (UP, DOWN, LEFT, RIGHT) to move
+   - In the title screen, use UP and DOWN to change your wager amount.
+- Pressing SPACEBAR performs an action:
+   - When over the deck, draws (picks up) a card.
+   - When holding a card, places the card at the player's spot.
+      - Place the card over its corresponding colored slot to play it.
+      - Or, place the card over the "sell card" spot to get some money.
+   - When over an ACE card, toggles its value between 1 and 11 (yellow ACE means 11).
 
-- Press TAB to cycle through selectable planes.
+## Gameplay
 
-- Press W/up arrow to increase the selected plane's velocity.
+Opening the window starts you at the title screen, where you can change your initial wager amount for the game.
+Pressing SPACE starts the game. Just like normal blackjack, the sum of your cards' values must to get as close to 21 as possible without going over (busting). However, there are some twists:
+   - You must draw and place down your own cards from your deck.
+   - A timer ticks down from 10 seconds. Each match ends when the timer hits zero, and your placed cards are evaluated.
+   - Payouts are given automatically and games then restart immediately every 10 seconds.
+   - You can also sell cards you don't want to use to regain some money.
+   - You win if you get a higher value than the dealer without busting.
 
-- Press S/down arrow to decrease the selected plane's velocity.
+Congrats, you can now gamble your savings away! Here are your payouts:
+   - Normal Win: + x0.5 of the wager
+   - Blackjack Win: + x1.5 of the wager
+   - Loss: - x1 of the wager
+   - Draw: + x0 of the wager
 
-- Press A/left arrow to turn the plane counter-clockwise.
-
-- Press D/right arrow to turn the plane clockwise.
-
-- Press Q to move the selected plane upward.
-
-- Press E to move the selected plane downward.
-
-- Press SPACE to stop the selected plane.
+TIP: Don't piss off the dealer or things might get physical!
