@@ -61,3 +61,9 @@ Congrats, you can now gamble your savings away! Here are your payouts:
    - Draw: + x0 of the wager
 
 TIP: Don't piss off the dealer or things might get physical!
+
+## Credits
+
+- Background Music: "Luigi's Casino" by Koji Kondo
+- Sound Effects: Various by Pixabay
+- Card and Icon Assets: Board by Game-icons.net (https://game-icons.net/tags/board.html)
