@@ -14,7 +14,18 @@ namespace cs381 {
             for(auto& f: functions) f(args...);
         }
 
-        void operator+=(std::function<Return(Arguments...) f) {
+        // Get type of class method (method pointers)
+        template <typename Class>
+        using MethodType = Return(Class::*)(Arguments...);
+
+        template <typename Class>
+        void connect(Class& cls, MethodType<Class> f) { // class methods need an object in order to be called
+            this->operator+=([cls, f](Arguments... args) -> Return {
+                return cls.*f;
+            });
+        }
+
+        void operator+=(std::function<Return(Arguments...)> f) {
             functions.push_back(f);
         }
     };
