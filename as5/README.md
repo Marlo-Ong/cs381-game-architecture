@@ -31,24 +31,24 @@ In order to run this assignment:
 
    > ./as5
 
-6. Once the executable is run, a window should open, and there should be a plane object atop a grassy ground and a sky. Use your keyboard to control the plane according to the following:
+6. Once the executable is run, a window should open with an audio controls GUI. Use your keyboard to control the audio according to the following:
 
 ## Controls
 
-- (WASD or arrow key format)
+Mouse:
+- Click and hold on any slider, and:
 
-- Press TAB to cycle through selectable planes.
+- Drag your mouse to the right to increase the volume.
 
-- Press W/up arrow to increase the selected plane's velocity.
+- Drag your mouse to the left to decrease the volume.
 
-- Press S/down arrow to decrease the selected plane's velocity.
 
-- Press A/left arrow to turn the plane counter-clockwise.
+Keyboard:
 
-- Press D/right arrow to turn the plane clockwise.
+- Press TAB to cycle through which slider to select.
 
-- Press Q to move the selected plane upward.
+- Press W/up arrow to increase the selected slider's volume.
 
-- Press E to move the selected plane downward.
+- Press S/down arrow to decrease the selected slider's volume.
 
-- Press SPACE to stop the selected plane.
+- Press apostrophe (') to toggle between light and dark modes.
