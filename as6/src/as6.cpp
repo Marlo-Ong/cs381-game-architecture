@@ -94,7 +94,7 @@ struct RenderingComponent : public Component {
 };
 
 int main() {
-    raylib::Window window(600,400, "CS381 - Assignment 4");
+    raylib::Window window(600,400, "CS381 - Assignment 6");
 
     std::vector<Entity> entities;
     Entity& e = entities.emplace_back();
@@ -107,10 +107,10 @@ int main() {
     // Load ground
     auto mesh = raylib::Mesh::Plane(10'000, 10'000, 50, 50, 25);
     raylib::Model ground = ((raylib::Mesh*)&mesh)->LoadModelFrom();
-    raylib::Texture grass("../textures/grass.jpg");
-    grass.SetFilter(TEXTURE_FILTER_BILINEAR);
-    grass.SetWrap(TEXTURE_WRAP_REPEAT);
-    ground.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = grass;
+    raylib::Texture water("../textures/water.jpg");
+    water.SetFilter(TEXTURE_FILTER_BILINEAR);
+    water.SetWrap(TEXTURE_WRAP_REPEAT);
+    ground.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = water;
 
     // Load planes
     raylib::Model planeModel;

@@ -1,4 +1,4 @@
-# AS5: Audio GUI
+# AS6: Audio GUI
 
 Authored by Marlo Ongkingco for CS381 (Game Engine Architecture)
 
@@ -11,9 +11,9 @@ In order to run this assignment:
 
    > git clone https://github.com/Marlo-Ong/cs381-game-architecture.git
    >
-3. Move into the as5 and fetch the raylib submodule:
+3. Move into the as6 and fetch the raylib submodule:
 
-   > cd cs381-game-architecture/as5
+   > cd cs381-game-architecture/as6
 
    > git submodule update --init --recursive
 
@@ -29,26 +29,26 @@ In order to run this assignment:
 
 5. If it compiled successfully (this may take a bit), an executable should be created, which you can run with the following command:
 
-   > ./as5
+   > ./as6
 
-6. Once the executable is run, a window should open with an audio controls GUI. Use your keyboard to control the audio according to the following:
+6. Once the executable is run, a window should open, and there should be a plane object atop a grassy ground and a sky. Use your keyboard to control the plane according to the following:
 
 ## Controls
 
-Mouse:
-- Click and hold on any slider, and:
+- (WASD or arrow key format)
 
-- Drag your mouse to the right to increase the volume.
+- Press TAB to cycle through selectable planes.
 
-- Drag your mouse to the left to decrease the volume.
+- Press W/up arrow to increase the selected plane's velocity.
 
+- Press S/down arrow to decrease the selected plane's velocity.
 
-Keyboard:
+- Press A/left arrow to turn the plane counter-clockwise.
 
-- Press TAB to cycle through which slider to select.
+- Press D/right arrow to turn the plane clockwise.
 
-- Press W/up arrow to increase the selected slider's volume.
+- Press Q to move the selected plane upward.
 
-- Press S/down arrow to decrease the selected slider's volume.
+- Press E to move the selected plane downward.
 
-- Press apostrophe (') to toggle between light and dark modes.
+- Press SPACE to stop the selected plane.
