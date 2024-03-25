@@ -1,4 +1,4 @@
-# AS6: Audio GUI
+# AS6: Object Oriented Entity Component Ships and Planes
 
 Authored by Marlo Ongkingco for CS381 (Game Engine Architecture)
 
@@ -31,24 +31,24 @@ In order to run this assignment:
 
    > ./as6
 
-6. Once the executable is run, a window should open, and there should be a plane object atop a grassy ground and a sky. Use your keyboard to control the plane according to the following:
+6. Once the executable is run, a window should open, and there should be 5 ships and 5 planes atop an ocean and a sky. Use your keyboard to control the plane according to the following:
 
 ## Controls
 
 - (WASD or arrow key format)
 
-- Press TAB to cycle through selectable planes.
+- Press TAB to cycle through selectable vehicles (cycles through boats, then planes in order).
 
-- Press W/up arrow to increase the selected plane's velocity.
+- Press W/up arrow to increase the selected vehicle's velocity.
 
-- Press S/down arrow to decrease the selected plane's velocity.
+- Press S/down arrow to decrease the selected vehicle's velocity.
 
-- Press A/left arrow to turn the plane counter-clockwise.
+- Press A/left arrow to increase the selected vehicle's heading.
 
-- Press D/right arrow to turn the plane clockwise.
+- Press D/right arrow to decrease the selected vehicle's heading.
 
-- Press Q to move the selected plane upward.
+- If a plane is selected, press Q to move it upward.
 
-- Press E to move the selected plane downward.
+- If a plane is selected, press E to move it downward.
 
-- Press SPACE to stop the selected plane.
+- Press SPACE to smoothly stop the selected vehicle.
