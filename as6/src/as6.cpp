@@ -6,11 +6,6 @@
 #include <iostream>
 #include <BufferedInput.hpp>
 
-template<typename T>
-concept Transformer = requires(T t, raylib::Transform m) {
-	{ t.operator()(m) } -> std::convertible_to<raylib::Transform>;
-};
-
 struct Component {
     struct Entity* object;
 
@@ -100,16 +95,17 @@ struct RenderingComponent : public Component {
 struct PhysicsComponent2D : public Component {
     using Component::Component;
 
-    PhysicsComponent2D(Entity& obj, float a, float b, float c, float d) : Component(obj) {
+    PhysicsComponent2D(Entity& obj, float a, float b, float c, float d, raylib::Vector3 rot = {0,1,0}) : Component(obj) {
         acceleration = a;
         turningRate = b;
         maxSpeed = c;
         minSpeed = d;
+        rotationAxis = rot;
 
         targetSpeed = 0;
         speed = 0;
-        targetHeading = raylib::Degree(0);
-        heading = raylib::Degree(0);
+        targetHeading = raylib::Degree(90);
+        heading = raylib::Degree(90);
     };
 
     float acceleration;
@@ -120,6 +116,7 @@ struct PhysicsComponent2D : public Component {
     float targetSpeed;
     float speed;
     raylib::Vector3 velocity;
+    raylib::Vector3 rotationAxis;
 
     raylib::Degree targetHeading;
     raylib::Degree heading;
@@ -131,8 +128,9 @@ struct PhysicsComponent2D : public Component {
 
         velocity = CalculateVelocity(dt);
         transform.position = transform.position + velocity * dt;
-        transform.rotation = raylib::Vector3(transform.rotation.x, heading, transform.rotation.z);
-        std::cout << transform.rotation.y << std::endl;
+        transform.rotation = raylib::Vector3(heading, heading, heading).Multiply(rotationAxis).Add(
+            transform.rotation.Multiply(raylib::Vector3::One().Subtract(rotationAxis)));
+        std::cout <<"(" << transform.rotation.x << ", " << transform.rotation.y << ", " << transform.rotation.z << ") - " <<"(" << transform.position.x << ", " << transform.position.y << ", " << transform.position.z << ")" << std::endl;
     }
 
     raylib::Vector3 CalculateVelocity(float dt){
@@ -143,24 +141,24 @@ struct PhysicsComponent2D : public Component {
 		    return decimal + whole;
 	    };
 
-        targetHeading = AngleClamp(targetHeading);
-        heading = AngleClamp(heading);
+        float tempTarget = AngleClamp(targetHeading);
+        float tempHead = AngleClamp(heading);
 
-        float difference = abs(targetHeading - heading);
-        if (targetHeading > heading) {
+        float difference = abs(tempTarget - tempHead);
+        if (tempTarget > tempHead) {
             if (difference < 180) heading += turningRate * dt;
             else if (difference > 180) heading -= turningRate * dt;
         }
-        else if (targetHeading < heading) {
+        else if (tempTarget < tempHead) {
             if (difference > 180) heading += turningRate * dt;
             else if (difference < 180) heading -= turningRate * dt;
         }
-        if(difference < .5) heading = targetHeading;
+        if(difference < 2) heading = targetHeading;
 
         if (targetSpeed > speed) speed += acceleration * dt;
         else if (targetSpeed < speed) speed -= acceleration * dt;
 
-        return {speed * cos(heading.RadianValue()), 0, -speed * sin(heading.RadianValue())};
+        return {speed * sin(heading.RadianValue()), 0, -speed * cos(heading.RadianValue())};
     }
 
     void IncreaseSpeed() {
@@ -172,11 +170,11 @@ struct PhysicsComponent2D : public Component {
     }
 
     void IncreaseHeading() {
-        targetHeading += 10;
+        targetHeading += 20;
     }
 
     void DecreaseHeading() {
-        targetHeading -= 10;
+        targetHeading -= 20;
     }
 
     void Stop() {
@@ -321,38 +319,56 @@ int main() {
 	const int screenHeight = 450;
 	raylib::Window window(screenWidth, screenHeight, "CS381 - Assignment 6");
 
-    // Load models
+    // Load ships
     std::vector<Entity> entities;
-    // Entity& ship1 = entities.emplace_back();
-    // ship1.AddComponent<RenderingComponent>(raylib::Model("../meshes/CargoG_HOSBrigadoon.glb"));
-    // ship1.GetComponent<TransformComponent>()->get().position = raylib::Vector3(0, 0, 0);
-    // ship1.GetComponent<TransformComponent>()->get().rotation = raylib::Vector3(45, 0, 45);
-    // ship1.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.05, 0.05, 0.05);
-    // ship1.AddComponent<PhysicsComponent>(50, 1, 50, -50);
-    // ship1.AddComponent<InputComponent>();
-    // ship1.GetComponent<InputComponent>()->get().setup();
+    Entity& ship1 = entities.emplace_back();
+    ship1.AddComponent<RenderingComponent>(raylib::Model("../meshes/CargoG_HOSBrigadoon.glb"));
+    ship1.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.02, 0.02, 0.02);
 
-    float boatValues[5][4] = {
-        {50, 30, 50, -50},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10}
+    Entity& ship2 = entities.emplace_back();
+    ship2.AddComponent<RenderingComponent>(raylib::Model("../meshes/Container_ShipLarge.glb"));
+    ship2.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.005, 0.005, 0.005);
+
+    Entity& ship3 = entities.emplace_back();
+    ship3.AddComponent<RenderingComponent>(raylib::Model("../meshes/ddg51.glb"));
+
+    Entity& ship4 = entities.emplace_back();
+    ship4.AddComponent<RenderingComponent>(raylib::Model("../meshes/OrientExplorer.glb"));
+    ship4.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.01, 0.01, 0.01);
+
+    Entity& ship5 = entities.emplace_back();
+    ship5.AddComponent<RenderingComponent>(raylib::Model("../meshes/SmitHouston_Tug.glb"));
+    ship5.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(1.2, 1.2, 1.2);
+
+    raylib::Vector3 zRotation = {0,0,1};
+    raylib::Vector3 xRotation = {1,0,0};
+    float boatValues[5][6] = {
+    // posX, posY, acc, turn, maxSpd, minSpd
+        { 100,  100, 20, 30, 50, -50},  // brigadoon
+        {-100, -100, 5 , 10, 40, -40}, // container
+        { 100, -100, 10, 20, 30, -30},  // ddg
+        {-100,  100, 15, 40, 20, -20},  // orient
+        {   0,    0, 30, 50, 10, -10}        // tug
     };
 
-    float planeValues[5][4] = {
-        {50, 30, 50, -50},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10},
-        {10, 10, 10, 10}
-    };
+    // Assign ship values
+    int size = entities.size();
+    for (int i = 0; i < size; i++){
+        entities[i].GetComponent<TransformComponent>()->get().position = raylib::Vector3(boatValues[i][0], 0, boatValues[i][1]);
+        entities[i].GetComponent<TransformComponent>()->get().rotation = raylib::Vector3(90, 0, 90);
+        entities[i].AddComponent<PhysicsComponent2D>(boatValues[i][2], boatValues[i][3], boatValues[i][4], boatValues[i][5], zRotation);
+        entities[i].AddComponent<InputComponent>();
+        entities[i].GetComponent<InputComponent>()->get().setup();
+    }
+    ship5.GetComponent<TransformComponent>()->get().rotation = raylib::Vector3(0, 0, 0);
+    ship5.GetComponent<PhysicsComponent2D>()->get().rotationAxis = raylib::Vector3(0,1,0);
 
-    for (int i = 0; i < 5; i++) {
+    // Generate planes for each ship
+    for (int i = 0; i < size; i++) {
         Entity& plane = entities.emplace_back();
         plane.AddComponent<RenderingComponent>(raylib::Model("../meshes/PolyPlane.glb"));
-        plane.GetComponent<TransformComponent>()->get().position = raylib::Vector3(50, 10, 0);
-        plane.AddComponent<PhysicsComponent3D>(planeValues[i][0], planeValues[i][1], planeValues[i][2], planeValues[i][3]);
+        plane.GetComponent<TransformComponent>()->get().position = raylib::Vector3(boatValues[i][0], 30, boatValues[i][1]);
+        plane.AddComponent<PhysicsComponent3D>(50, 40, 20, -20); // planes can use same properties
         plane.AddComponent<InputComponent>();
         plane.GetComponent<InputComponent>()->get().setup();
     }
@@ -365,7 +381,7 @@ int main() {
 		raylib::Vector3(0, 120, -500), // Position
 		raylib::Vector3(0, 0, 300), // Target
 		raylib::Vector3::Up(), // Up direction
-		45.0f,
+		30.0f,
 		CAMERA_PERSPECTIVE
 	);
 
