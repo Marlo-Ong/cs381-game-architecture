@@ -6,6 +6,27 @@
 #include <iostream>
 #include <BufferedInput.hpp>
 
+template<typename T>
+concept Transformer = requires(T t, raylib::Transform m) {
+	{ t.operator()(m) } -> std::convertible_to<raylib::Transform>;
+};
+
+struct CalculateVelocityParams {
+	static constexpr float acceleration = 5;
+	static constexpr float angularAcceleration = 15;
+
+	float targetSpeed;
+	raylib::Degree targetHeading;
+	float& speed;
+	raylib::Degree& heading;
+	float dt;
+
+	float maxSpeed = 50;
+	float minSpeed = 0;
+};
+
+using Entity = uint8_t;
+
 struct Component {
     struct Entity* object;
 
@@ -307,11 +328,152 @@ struct InputComponent : public Component {
     }
 };
 
+// Can only store one type of thing
+struct ComponentStorage {
+    size_t elementSize = -1;
+    std::vector<std::byte> data;
+
+    // Constructors: default, give size, give type
+    ComponentStorage() : elementSize(-1), data(1, std::byte(0)) {}
+    ComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
+
+    template<typename Tcomponent>
+    ComponentStorage(Tcomponent reference = {}) : ComponentStorage(sizeof(Tcomponent)) {}
+    // reference = {} calls default constructor of component
+
+    template<typename Tcomponent>
+    Tcomponent& Get(Entity e) {
+        assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
+        assert(e < (data.size() / elementSize));
+        return *(Tcomponent*)(data.data() + e * elementSize);
+    }
+
+    template<typename Tcomponent>
+    std::pair<Tcomponent&, Entity> Allocate(size_t count = 1) {
+        assert(sizeof(Tcomponent) == elementSize);
+        assert(count < 255);
+
+        auto originalEnd = data.size();
+        data.insert(data.end(), elementSize * count, std::byte{0}); // at the end of the vector, allocate data equal to what we want
+
+        for(size_t i = 0; i < count - 1; i++)
+            new(data.data() + originalEnd + i * elementSize) Tcomponent(); // "placement new": call new() with an array pointer, allocates thing to the array element
+        return {
+            *new(data.data() + data.size() - elementSize) Tcomponent(),
+            data.size() / elementSize;
+        }
+    }
+
+    template<typename Tcomponent>
+    Tcomponent& GetOrAllocate(Entity e) {
+        assert(sizeof(Tcomponent) == elementSize);
+        size_t size = data.size() / elementSize; // number of elements (as components, not bytes)
+
+        if (size <= e)
+            Allocate<Tcomponent>(std::max<int64_t>(int64_t(e) - size, 1));
+        return Get<Tcomponent>(e);
+    }
+};
+
+struct SkiplistComponentStorage {
+    size_t elementSize = -1;
+    std::vector<uint16_t> indices;
+    std::vector<std::byte> data;
+
+    // Constructors: default, give size, give type
+    SkiplistComponentStorage() : elementSize(-1), data(1, std::byte{0}) {}
+    SkiplistComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
+
+    template<typename Tcomponent>
+    SkiplistComponentStorage(Tcomponent reference = {}) : SkiplistComponentStorage(sizeof(Tcomponent)) {}
+    // reference = {} calls default constructor of component
+
+    template<typename Tcomponent>
+    Tcomponent& Get(Entity e) {
+        assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
+        assert(e < indices.size());
+        assert(indices[e] != std::numeric_limits<uint16_t>::max());
+        return *(Tcomponent*)(data.data() + indices[e]);
+    }
+
+    private:
+        template<typename Tcomponent>
+        std::pair<Tcomponent&, Entity> Allocate() {
+            assert(sizeof(Tcomponent) == elementSize);
+            data.insert(data.end(), elementSize * count, std::byte{0}); // at the end of the vector, allocate data equal to what we want
+            return {
+                *new(data.data() + data.size() - elementSize) Tcomponent(),
+                data.size() / elementSize;
+            }
+        }
+
+    public:
+        template<typename Tcomponent>
+        Tcomponent& Allocate(Entity e) {
+            auto [ret, i] = Allocate<Tcomponent>();
+            indices[e] = i * elementSize;
+            return ret;
+        }
+
+        template<typename Tcomponent>
+        Tcomponent& GetOrAllocate(Entity e) {
+            assert(sizeof(Tcomponent) == elementSize);
+            if(indices.size() <= e)
+                indices.insert(indices.end(), std::max<int64_t>(int64_t(e) - indices.size(), 1), -1);
+            if(indices[e] == std::numeric_limits<uint16_t>::max())
+                return Allocate<Tcomponent>(e);
+            return Get<Tcomponent>(e);
+        }
+};
+
+extern size_t globalComponentCounter;
+template<typename T>
+size_t GetComponentID(T reference = {}) {
+    static size_t id = globalComponentCounter++;
+    return id;
+}
+
+
+// MONDAY APRIL 1ST CODE
+
+struct Scene {
+    void HasComponent();
+};
+
+struct Rendering {
+    raylib::Model* model;
+    bool drawBoundingBox = false;
+};
+
+struct Physics {};
+
+void DrawSystem(Scene& scene) {
+    for(Entity e = 0; e < scene.entityMasks.size(); e++) {
+        if(!scene.HasComponent<Rendering>(e)) continue;
+        if(!scene.HasComponent<Physics>(e)) continue;
+        auto& rendering = scene.GetComponent<Rendering>(e);
+
+        auto transformer = [](raylib::Transform t) -> raylib::Transform {
+            return t;
+        };
+
+        if (rendering.drawBoundingBox)
+            DrawBoundedModel(*rendering.model, transformer);
+        else DrawModel(*rendering.model, transformer);
+    }
+}
+
+// END
+
 ///////////////////////////////////////////////////////////////////////////
 // MAIN AREA //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
 bool ProcessInput(Entity&);
+//bool ProcessInput(raylib::Degree& planeTargetHeading, float& planeTargetSpeed, size_t& selectedPlane);
+raylib::Vector3 CaclulateVelocity(const CalculateVelocityParams& data);
+void DrawBoundedModel(raylib::Model& model, Transformer auto transformer);
+void DrawModel(raylib::Model& model, Transformer auto transformer);
 
 int main() {
 	// Create window
@@ -319,62 +481,10 @@ int main() {
 	const int screenHeight = 450;
 	raylib::Window window(screenWidth, screenHeight, "CS381 - Assignment 8");
 
-    // Load ships
-    std::vector<Entity> entities;
-    Entity& ship1 = entities.emplace_back();
-    ship1.AddComponent<RenderingComponent>(raylib::Model("../meshes/CargoG_HOSBrigadoon.glb"));
-    ship1.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.02, 0.02, 0.02);
-
-    Entity& ship2 = entities.emplace_back();
-    ship2.AddComponent<RenderingComponent>(raylib::Model("../meshes/Container_ShipLarge.glb"));
-    ship2.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.005, 0.005, 0.005);
-
-    Entity& ship3 = entities.emplace_back();
-    ship3.AddComponent<RenderingComponent>(raylib::Model("../meshes/ddg51.glb"));
-
-    Entity& ship4 = entities.emplace_back();
-    ship4.AddComponent<RenderingComponent>(raylib::Model("../meshes/OrientExplorer.glb"));
-    ship4.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(0.01, 0.01, 0.01);
-
-    Entity& ship5 = entities.emplace_back();
-    ship5.AddComponent<RenderingComponent>(raylib::Model("../meshes/SmitHouston_Tug.glb"));
-    ship5.GetComponent<TransformComponent>()->get().scale = raylib::Vector3(1.2, 1.2, 1.2);
-
-    raylib::Vector3 zRotation = {0,0,1};
-    raylib::Vector3 xRotation = {1,0,0};
-    float boatValues[5][6] = {
-    // posX, posY, acc, turn, maxSpd, minSpd
-        { 100,  100, 20, 30, 50, -50},  // brigadoon
-        {-100, -100, 5 , 10, 40, -40}, // container
-        { 100, -100, 10, 20, 30, -30},  // ddg
-        {-100,  100, 15, 40, 20, -20},  // orient
-        {   0,    0, 30, 50, 10, -10}        // tug
-    };
-
-    // Assign ship values
-    int size = entities.size();
-    for (int i = 0; i < size; i++){
-        entities[i].GetComponent<TransformComponent>()->get().position = raylib::Vector3(boatValues[i][0], 0, boatValues[i][1]);
-        entities[i].GetComponent<TransformComponent>()->get().rotation = raylib::Vector3(90, 0, 90);
-        entities[i].AddComponent<PhysicsComponent2D>(boatValues[i][2], boatValues[i][3], boatValues[i][4], boatValues[i][5], zRotation);
-        entities[i].AddComponent<InputComponent>();
-        entities[i].GetComponent<InputComponent>()->get().setup();
-    }
-    ship5.GetComponent<TransformComponent>()->get().rotation = raylib::Vector3(0, 0, 0);
-    ship5.GetComponent<PhysicsComponent2D>()->get().rotationAxis = raylib::Vector3(0,1,0);
-
-    // Generate planes for each ship
-    for (int i = 0; i < size; i++) {
-        Entity& plane = entities.emplace_back();
-        plane.AddComponent<RenderingComponent>(raylib::Model("../meshes/PolyPlane.glb"));
-        plane.GetComponent<TransformComponent>()->get().position = raylib::Vector3(boatValues[i][0], 30, boatValues[i][1]);
-        plane.AddComponent<PhysicsComponent3D>(50, 40, 20, -20); // planes can use same properties
-        plane.AddComponent<InputComponent>();
-        plane.GetComponent<InputComponent>()->get().setup();
-    }
-
-    int selectedVehicle = 0;
-    entities[selectedVehicle].GetComponent<RenderingComponent>()->get().isBounded = true;
+    // APRIL 1
+    Scene scene;
+    auto e = scene.CreateEntity();
+    scene.AddComponent<Rendering>(e) = {&plane, false};
 
 	// Create camera
 	auto camera = raylib::Camera(
@@ -405,16 +515,7 @@ int main() {
 	// Main loop
 	bool keepRunning = true;
 	while(!window.ShouldClose() && keepRunning) {
-		// Updates
-        if (IsKeyPressed(KEY_TAB)){
-            entities[selectedVehicle].GetComponent<RenderingComponent>()->get().isBounded = false;
-            selectedVehicle++;
-            selectedVehicle %= entities.size();
-            entities[selectedVehicle].GetComponent<RenderingComponent>()->get().isBounded = true;
-        }
 
-        entities[selectedVehicle].GetComponent<InputComponent>()->get().inputs.PollEvents();
-		
 		// Rendering
 		{
 			// Clear screen
@@ -426,10 +527,7 @@ int main() {
 				skybox.Draw();
 				ocean.Draw({});
 
-                for(Entity&e: entities) e.tick(window.GetFrameTime());
-
-                // EXTRA CREDIT: Camera pans toward target (plane)
-                camera.SetTarget(entities[selectedVehicle].GetComponent<TransformComponent>()->get().position);
+                scene.DrawScene();
 			}
 			camera.EndMode();
 
@@ -440,4 +538,48 @@ int main() {
 	}
 
 	return 0;
+}
+
+raylib::Vector3 CaclulateVelocity(const CalculateVelocityParams& data) {
+	static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree {
+		float decimal = float(angle) - int(angle);
+		int whole = int(angle) % 360;
+		whole += (whole < 0) * 360;
+		return decimal + whole;
+	};
+
+	float target = Clamp(data.targetSpeed, data.minSpeed, data.maxSpeed);
+	if(data.speed < target) data.speed += data.acceleration * data.dt;
+	else if(data.speed > target) data.speed -= data.acceleration * data.dt;
+	data.speed = Clamp(data.speed, data.minSpeed, data.maxSpeed);
+
+	target = AngleClamp(data.targetHeading);
+	float difference = abs(target - data.heading);
+	if(target > data.heading) {
+		if(difference < 180) data.heading += data.angularAcceleration * data.dt;
+		else if(difference > 180) data.heading -= data.angularAcceleration * data.dt;
+	} else if(target < data.heading) {
+		if(difference < 180) data.heading -= data.angularAcceleration * data.dt;
+		else if(difference > 180) data.heading += data.angularAcceleration * data.dt;
+	} 
+	if(difference < .5) data.heading = target; // If the heading is really close to correct 
+	data.heading = AngleClamp(data.heading);
+	raylib::Radian angle = raylib::Degree(data.heading);
+
+	return {cos(angle) * data.speed, 0, -sin(angle) * data.speed};
+}
+
+void DrawBoundedModel(raylib::Model& model, Transformer auto transformer) {
+	raylib::Transform backupTransform = model.transform;
+	model.transform = transformer(backupTransform);
+	model.Draw({});
+	model.GetTransformedBoundingBox().Draw();
+	model.transform = backupTransform;
+}
+
+void DrawModel(raylib::Model& model, Transformer auto transformer) {
+	raylib::Transform backupTransform = model.transform;
+	model.transform = transformer(backupTransform);
+	model.Draw({});
+	model.transform = backupTransform;
 }
