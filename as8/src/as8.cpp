@@ -5,6 +5,7 @@
 #include <optional>
 #include <iostream>
 #include <BufferedInput.hpp>
+#include "ECS.hpp"
 
 template<typename T>
 concept Transformer = requires(T t, raylib::Transform m) {
@@ -27,9 +28,9 @@ struct CalculateVelocityParams {
 
 };
 
-using Entity = uint8_t;
+// using Entity = uint8_t;
 
-bool ProcessInput(Entity&);
+bool ProcessInput(cs381::Entity&);
 //bool ProcessInput(raylib::Degree& planeTargetHeading, float& planeTargetSpeed, size_t& selectedPlane);
 raylib::Vector3 CaclulateVelocity(const CalculateVelocityParams& data);
 void DrawBoundedModel(raylib::Model& model, Transformer auto transformer);
@@ -337,155 +338,200 @@ void DrawModel(raylib::Model& model, Transformer auto transformer);
 // };
 
 // Can only store one type of thing
-struct ComponentStorage {
-    size_t elementSize = -1;
-    std::vector<std::byte> data;
+// struct ComponentStorage {
+//     size_t elementSize = -1;
+//     std::vector<std::byte> data;
 
-    // Constructors: default, give size, give type
-    ComponentStorage() : elementSize(-1), data(1, std::byte(0)) {}
-    ComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
+//     // Constructors: default, give size, give type
+//     ComponentStorage() : elementSize(-1), data(1, std::byte(0)) {}
+//     ComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
 
-    template<typename Tcomponent>
-    ComponentStorage(Tcomponent reference = {}) : ComponentStorage(sizeof(Tcomponent)) {}
-    // reference = {} calls default constructor of component
+//     template<typename Tcomponent>
+//     ComponentStorage(Tcomponent reference = {}) : ComponentStorage(sizeof(Tcomponent)) {}
+//     // reference = {} calls default constructor of component
 
-    template<typename Tcomponent>
-    Tcomponent& Get(Entity e) {
-        assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
-        assert(e < (data.size() / elementSize));
-        return *(Tcomponent*)(data.data() + e * elementSize);
-    }
+//     template<typename Tcomponent>
+//     Tcomponent& Get(Entity e) {
+//         assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
+//         assert(e < (data.size() / elementSize));
+//         return *(Tcomponent*)(data.data() + e * elementSize);
+//     }
 
-    template<typename Tcomponent>
-    std::pair<Tcomponent&, Entity> Allocate(size_t count = 1) {
-        assert(sizeof(Tcomponent) == elementSize);
-        assert(count < 255);
+//     template<typename Tcomponent>
+//     std::pair<Tcomponent&, Entity> Allocate(size_t count = 1) {
+//         assert(sizeof(Tcomponent) == elementSize);
+//         assert(count < 255);
 
-        auto originalEnd = data.size();
-        data.insert(data.end(), elementSize * count, std::byte{0}); // at the end of the vector, allocate data equal to what we want
+//         auto originalEnd = data.size();
+//         data.insert(data.end(), elementSize * count, std::byte{0}); // at the end of the vector, allocate data equal to what we want
 
-        for(size_t i = 0; i < count - 1; i++)
-            new(data.data() + originalEnd + i * elementSize) Tcomponent(); // "placement new": call new() with an array pointer, allocates thing to the array element
-        return {
-            *new(data.data() + data.size() - elementSize) Tcomponent(),
-            data.size() / elementSize
-        };
-    }
+//         for(size_t i = 0; i < count - 1; i++)
+//             new(data.data() + originalEnd + i * elementSize) Tcomponent(); // "placement new": call new() with an array pointer, allocates thing to the array element
+//         return {
+//             *new(data.data() + data.size() - elementSize) Tcomponent(),
+//             data.size() / elementSize
+//         };
+//     }
 
-    template<typename Tcomponent>
-    Tcomponent& GetOrAllocate(Entity e) {
-        assert(sizeof(Tcomponent) == elementSize);
-        size_t size = data.size() / elementSize; // number of elements (as components, not bytes)
+//     template<typename Tcomponent>
+//     Tcomponent& GetOrAllocate(Entity e) {
+//         assert(sizeof(Tcomponent) == elementSize);
+//         size_t size = data.size() / elementSize; // number of elements (as components, not bytes)
 
-        if (size <= e)
-            Allocate<Tcomponent>(std::max<int64_t>(int64_t(e) - size, 1));
-        return Get<Tcomponent>(e);
-    }
-};
+//         if (size <= e)
+//             Allocate<Tcomponent>(std::max<int64_t>(int64_t(e) - size, 1));
+//         return Get<Tcomponent>(e);
+//     }
+// };
 
-struct SkiplistComponentStorage {
-    size_t elementSize = -1;
-    std::vector<uint16_t> indices;
-    std::vector<std::byte> data;
+// struct SkiplistComponentStorage {
+//     size_t elementSize = -1;
+//     std::vector<uint16_t> indices;
+//     std::vector<std::byte> data;
 
-    // Constructors: default, give size, give type
-    SkiplistComponentStorage() : elementSize(-1), data(1, std::byte{0}) {}
-    SkiplistComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
+//     // Constructors: default, give size, give type
+//     SkiplistComponentStorage() : elementSize(-1), data(1, std::byte{0}) {}
+//     SkiplistComponentStorage(size_t elementSize) : elementSize(elementSize) {data.resize(5 * elementSize);}
 
-    template<typename Tcomponent>
-    SkiplistComponentStorage(Tcomponent reference = {}) : SkiplistComponentStorage(sizeof(Tcomponent)) {}
-    // reference = {} calls default constructor of component
+//     template<typename Tcomponent>
+//     SkiplistComponentStorage(Tcomponent reference = {}) : SkiplistComponentStorage(sizeof(Tcomponent)) {}
+//     // reference = {} calls default constructor of component
 
-    template<typename Tcomponent>
-    Tcomponent& Get(Entity e) {
-        assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
-        assert(e < indices.size());
-        assert(indices[e] != std::numeric_limits<uint16_t>::max());
-        return *(Tcomponent*)(data.data() + indices[e]);
-    }
+//     template<typename Tcomponent>
+//     Tcomponent& Get(Entity e) {
+//         assert(sizeof(Tcomponent) == elementSize);  // components must be the same size
+//         assert(e < indices.size());
+//         assert(indices[e] != std::numeric_limits<uint16_t>::max());
+//         return *(Tcomponent*)(data.data() + indices[e]);
+//     }
 
-    private:
-        template<typename Tcomponent>
-        std::pair<Tcomponent&, Entity> Allocate() {
-            assert(sizeof(Tcomponent) == elementSize);
-            data.insert(data.end(), elementSize, std::byte{0}); // at the end of the vector, allocate data equal to what we want
-            return {
-                *new(data.data() + data.size() - elementSize) Tcomponent(),
-                data.size() / elementSize
-            };
-        }
+//     private:
+//         template<typename Tcomponent>
+//         std::pair<Tcomponent&, Entity> Allocate() {
+//             assert(sizeof(Tcomponent) == elementSize);
+//             data.insert(data.end(), elementSize, std::byte{0}); // at the end of the vector, allocate data equal to what we want
+//             return {
+//                 *new(data.data() + data.size() - elementSize) Tcomponent(),
+//                 data.size() / elementSize
+//             };
+//         }
 
-    public:
-        template<typename Tcomponent>
-        Tcomponent& Allocate(Entity e) {
-            auto [ret, i] = Allocate<Tcomponent>();
-            indices[e] = i * elementSize;
-            return ret;
-        }
+//     public:
+//         template<typename Tcomponent>
+//         Tcomponent& Allocate(Entity e) {
+//             auto [ret, i] = Allocate<Tcomponent>();
+//             indices[e] = i * elementSize;
+//             return ret;
+//         }
 
-        template<typename Tcomponent>
-        Tcomponent& GetOrAllocate(Entity e) {
-            assert(sizeof(Tcomponent) == elementSize);
-            if(indices.size() <= e)
-                indices.insert(indices.end(), std::max<int64_t>(int64_t(e) - indices.size(), 1), -1);
-            if(indices[e] == std::numeric_limits<uint16_t>::max())
-                return Allocate<Tcomponent>(e);
-            return Get<Tcomponent>(e);
-        }
-};
+//         template<typename Tcomponent>
+//         Tcomponent& GetOrAllocate(Entity e) {
+//             assert(sizeof(Tcomponent) == elementSize);
+//             if(indices.size() <= e)
+//                 indices.insert(indices.end(), std::max<int64_t>(int64_t(e) - indices.size(), 1), -1);
+//             if(indices[e] == std::numeric_limits<uint16_t>::max())
+//                 return Allocate<Tcomponent>(e);
+//             return Get<Tcomponent>(e);
+//         }
+// };
 
-extern size_t globalComponentCounter; // declared in counter.cpp
-template<typename T>
-size_t GetComponentID(T reference = {}) {
-    static size_t id = globalComponentCounter++;
-    return id;
-}
+// extern size_t globalComponentCounter; // declared in counter.cpp
+// template<typename T>
+// size_t GetComponentID(T reference = {}) {
+//     static size_t id = globalComponentCounter++;
+//     return id;
+// }
 
-struct Scene {
-    std::vector<std::vector<bool>> entityMasks;
-    std::vector<ComponentStorage> storages = {ComponentStorage()};
+// struct Scene {
+//     std::vector<std::vector<bool>> entityMasks;
+//     // mask: say component IDs in order are: transform, rendering, physics, input
+//     // if mask is 1111 the entity has all components, 0000 has none, 1000 has only transform
+//     std::vector<ComponentStorage> storages = {ComponentStorage()};
 
-    template<typename Tcomponent>
-    ComponentStorage& GetStorage() {
-        size_t id = GetComponentID<Tcomponent>();
-        if(storages.size() <= id)
-            storages.insert(storages.cend(), std::max<int64_t>(id - storages.size(), 1), ComponentStorage());
-        if(storages[id].elementSize == std::numeric_limits<size_t>::max())
-            storages[id] = ComponentStorage(Tcomponent{});
-        return storages[id];
-    }
+//     template<typename Tcomponent>
+//     ComponentStorage& GetStorage() {
+//         size_t id = GetComponentID<Tcomponent>();
+//         if(storages.size() <= id)
+//             storages.insert(storages.cend(), std::max<int64_t>(id - storages.size(), 1), ComponentStorage());
+//         if(storages[id].elementSize == std::numeric_limits<size_t>::max())
+//             storages[id] = ComponentStorage(Tcomponent{});
+//         return storages[id];
+//     }
 
-    Entity CreateEntity() {
-        Entity e = entityMasks.size();
-        entityMasks.emplace_back(std::vector<bool>{false});
-        return e;
-    }
+//     Entity CreateEntity() {
+//         Entity e = entityMasks.size();
+//         entityMasks.emplace_back(std::vector<bool>{false});
+//         return e;
+//     }
 
-    template<typename Tcomponent>
-    Tcomponent& AddComponent(Entity e) {
-        size_t id = GetComponentID<Tcomponent>();
-        auto& eMask = entityMasks[e];
-        if(eMask.size() <= id)
-            eMask.resize(id+1, false);
-        eMask[id] = true;
-        return GetStorage<Tcomponent>().template GetOrAllocate<Tcomponent>(e);
-    }
+//     template<typename Tcomponent>
+//     Tcomponent& AddComponent(Entity e) {
+//         size_t id = GetComponentID<Tcomponent>();
+//         auto& eMask = entityMasks[e];
+//         if(eMask.size() <= id)
+//             eMask.resize(id+1, false);
+//         eMask[id] = true;
+//         return GetStorage<Tcomponent>().template GetOrAllocate<Tcomponent>(e);
+//     }
 
-    // Implement RemoveComponent
+//     // Implement RemoveComponent
 
-    template<typename Tcomponent>
-    Tcomponent& GetComponent(Entity e) {
-        size_t id = GetComponentID<Tcomponent>();
-        assert(entityMasks[e][id]);
-        return GetStorage<Tcomponent>().template Get<Tcomponent>(e);
-    }   
+//     template<typename Tcomponent>
+//     Tcomponent& GetComponent(Entity e) {
+//         size_t id = GetComponentID<Tcomponent>();
+//         assert(entityMasks[e][id]);
+//         return GetStorage<Tcomponent>().template Get<Tcomponent>(e);
+//     }   
 
-    template<typename Tcomponent>
-    bool HasComponent(Entity e) {
-        size_t id = GetComponentID<Tcomponent>();
-        return entityMasks.size() > e && entityMasks[e].size() > id && entityMasks[e][id];
-    }    
-};
+//     template<typename Tcomponent>
+//     bool HasComponent(Entity e) {
+//         size_t id = GetComponentID<Tcomponent>();
+//         return entityMasks.size() > e && entityMasks[e].size() > id && entityMasks[e][id];
+//     }    
+// };
+
+// template<typename... Tcomponents>
+// struct SceneView {
+//     struct Sentinel {}; // checks or "guards" if in bounds
+//     struct Iterator {
+//         Scene* scene = nullptr;
+//         Entity e;
+
+//         bool valid() {
+//             (scene->HasComponent<Tcomponents>(e) && ...);
+//         }
+
+//         bool operator==(Sentinel) { // automatically writes op overload for !=
+//             return scene == nullptr || e >= scene->entityMasks.size();
+//         }
+
+//         using post_increment_t = int;
+//         Iterator& operator++(post_increment_t) {
+//             do {
+//                 e++;
+//             } while (!valid() && e > scene->entityMasks.size());
+//             return *this;
+//         }
+//         Iterator& operator++() {
+//             Iterator old = *this;
+//             operator++(0);
+//             return old;
+//         }
+
+//         std::tuple<std::add_lvalue_reference_t<Tcomponents>...> operator*() {
+//             return {scene->GetComponent<Tcomponents>(e)...};
+//         }
+//     };
+//     Scene& scene;
+
+//     Iterator begin() {
+//         Iterator out{&scene, 0}; // Entity index 0: first Entity in scene
+//         if(!out.valid()) ++out;
+//         return out;
+//     }
+
+//     Sentinel end() { return {}; }
+// };
 
 struct Rendering {
     raylib::Model* model;
@@ -494,19 +540,24 @@ struct Rendering {
 
 struct Physics {};
 
-void DrawSystem(Scene& scene) {
-    for(Entity e = 0; e < scene.entityMasks.size(); e++) {
-        if(!scene.HasComponent<Rendering>(e)) continue;
-        if(!scene.HasComponent<Physics>(e)) continue;
-        auto& rendering = scene.GetComponent<Rendering>(e);
+void DrawSystem(cs381::Scene<>& scene) {
+    // SYNTACTICAL SUGAR!
+    // for (auto x: someArray) {}
+    // auto&& begin = someArray.begin; (SceneView<...>::Iterator&&)
+    // auto&& end = someArray.end; (SceneView<...>::Sentinel&&)
+    // for (; begin != end; begin++) { auto x = *begin; }
+    // uses iterators: class that behaves like a pointer, pointer with extra functionality
 
+    for(auto [rendering]: cs381::SceneView<Rendering>{scene}) {
         auto transformer = [](raylib::Transform t) -> raylib::Transform {
-            return t;
+            return t; // implement some sort of transform based on physics component
         };
 
-        if (rendering.drawBoundingBox)
-            DrawBoundedModel(*rendering.model, transformer);
-        else DrawModel(*rendering.model, transformer);
+        if (rendering.model) {
+            if (rendering.drawBoundingBox)
+                DrawBoundedModel(*rendering.model, transformer);
+            else DrawModel(*rendering.model, transformer);
+        }
     }
 }
 
@@ -521,8 +572,7 @@ int main() {
 	const int screenHeight = 450;
 	raylib::Window window(screenWidth, screenHeight, "CS381 - Assignment 8");
 
-    // APRIL 1
-    Scene scene;
+    cs381::Scene<> scene;
     auto e = scene.CreateEntity();
     raylib::Model plane("meshes/PolyPlane.glb");
     scene.AddComponent<Rendering>(e) = {&plane, false};
@@ -580,35 +630,6 @@ int main() {
 
 	return 0;
 }
-
-// raylib::Vector3 CaclulateVelocity(const CalculateVelocityParams& data) {
-// 	static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree {
-// 		float decimal = float(angle) - int(angle);
-// 		int whole = int(angle) % 360;
-// 		whole += (whole < 0) * 360;
-// 		return decimal + whole;
-// 	};
-
-// 	float target = Clamp(data.targetSpeed, data.minSpeed, data.maxSpeed);
-// 	if(data.speed < target) data.speed += data.acceleration * data.dt;
-// 	else if(data.speed > target) data.speed -= data.acceleration * data.dt;
-// 	data.speed = Clamp(data.speed, data.minSpeed, data.maxSpeed);
-
-// 	target = AngleClamp(data.targetHeading);
-// 	float difference = abs(target - data.heading);
-// 	if(target > data.heading) {
-// 		if(difference < 180) data.heading += data.angularAcceleration * data.dt;
-// 		else if(difference > 180) data.heading -= data.angularAcceleration * data.dt;
-// 	} else if(target < data.heading) {
-// 		if(difference < 180) data.heading -= data.angularAcceleration * data.dt;
-// 		else if(difference > 180) data.heading += data.angularAcceleration * data.dt;
-// 	} 
-// 	if(difference < .5) data.heading = target; // If the heading is really close to correct 
-// 	data.heading = AngleClamp(data.heading);
-// 	raylib::Radian angle = raylib::Degree(data.heading);
-
-// 	return {cos(angle) * data.speed, 0, -sin(angle) * data.speed};
-// }
 
 void DrawBoundedModel(raylib::Model& model, Transformer auto transformer) {
 	raylib::Transform backupTransform = model.transform;

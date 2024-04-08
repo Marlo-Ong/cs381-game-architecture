@@ -5,7 +5,137 @@
 #include "raylib-cpp.hpp"
 #include <iostream>
 #include <string>
+#include <concepts>
+#include <memory>
+#include <optional>
+#include <iostream>
+#include <BufferedInput.hpp>
 using namespace std;
+
+struct Component {
+    struct Entity* object;
+
+    Component(struct Entity& e) : object(&e) {}
+
+    virtual void setup() {};
+    virtual void cleanup() {};
+    virtual void tick(float dt) {};
+};
+
+struct TransformComponent : public Component {
+    using Component::Component; // using the same constructor as Component
+    raylib::Vector3 position = {0,0,0};
+    raylib::Vector3 rotation = {0,0,0};
+    raylib::Vector3 scale = {1, 1, 1};
+};
+
+struct Entity {
+    std::vector<std::unique_ptr<Component>> components;
+    // unique ptr tied to given component, deletes if component is deleted
+
+    Entity() { AddComponent<TransformComponent>(); }
+    Entity(const Entity&) = delete; // Compiler error if you try to copy an Entity, use the move constructor instead
+    Entity(Entity&& other) : components(std::move(other.components)) {
+        for (auto& c : components)
+            c->object = this;
+    }
+
+    template<std::derived_from<Component> T, typename... Ts> // derived_from<Component> -> only takes types that are children of Component class
+    size_t AddComponent(Ts... args) {
+        auto c = std::make_unique<T>(*this, std::forward<Ts>(args)...);
+        components.push_back(std::move(c));
+        return components.size() - 1;
+    }
+
+    template<std::derived_from<Component> T>
+    std::optional<std::reference_wrapper<T>> GetComponent() { // reference_wrapper allows & references to be placed within vectors, lists
+                                                              // std::optional same as [if (x), y = *x ]
+
+        // Optimization: since all Entities have a Transform, skip the loop below
+        if constexpr(std::is_same_v<T, TransformComponent>) { 
+            T* cast = dynamic_cast<T*>(components[0].get()); // components[0] = transform comp.
+            if(cast) return *cast;
+        }
+
+        // Loop through components and return the one requested
+        for(auto& c : components) {
+            T* cast = dynamic_cast<T*>(c.get());
+            if(cast) return *cast;
+        }
+
+        // Else return null
+        return std::nullopt; // null value when using "optional"
+    }
+
+    void tick(float dt) {
+        for(auto& c : components)
+            c->tick(dt);
+    }
+};
+
+struct InputComponent : public Component {
+    using Component::Component;
+
+    raylib::BufferedInput inputs;
+
+    void setup() override {
+        auto ref = object->GetComponent<PhysicsComponent2D>();
+        if (!ref) return;
+        auto& physics = ref->get();
+
+        inputs["forward"] =
+            raylib::Action::button_set( {raylib::Button::key(KEY_W), raylib::Button::key(KEY_UP)})
+                .SetPressedCallback([&physics]{
+                    physics.IncreaseSpeed();
+            }).move();
+
+        inputs["back"] =
+            raylib::Action::button_set( {raylib::Button::key(KEY_S), raylib::Button::key(KEY_DOWN)})
+                .SetPressedCallback([&physics]{
+                    physics.DecreaseSpeed();
+            }).move();
+
+        inputs["upheading"] =
+            raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
+                .SetPressedCallback([&physics]{
+                    physics.IncreaseHeading();
+            }).move();
+
+        inputs["backheading"] =
+            raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
+                .SetPressedCallback([&physics]{
+                    physics.DecreaseHeading();
+            }).move();
+
+        inputs["stop"] =
+            raylib::Action::key(KEY_SPACE)
+                .SetPressedCallback([&physics]{
+                    physics.Stop();
+            }).move();
+
+        auto ref3D = object->GetComponent<PhysicsComponent3D>();
+        if (!ref3D) return;
+        auto& physics3D = ref3D->get();
+
+        inputs["up"] =
+            raylib::Action::key(KEY_Q)
+                .SetPressedCallback([&physics3D]{
+                    physics3D.IncreaseSpeedY();
+            }).move();
+
+        inputs["down"] =
+            raylib::Action::key(KEY_E)
+                .SetPressedCallback([&physics3D]{
+                    physics3D.DecreaseSpeedY();
+            }).move();
+
+        inputs["stop"] =
+            raylib::Action::key(KEY_SPACE)
+                .SetPressedCallback([&physics3D]{
+                    physics3D.Stop();
+            }).move();
+    }
+};
 
 struct Player {
     Rectangle rect;
