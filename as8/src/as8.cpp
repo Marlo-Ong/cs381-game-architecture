@@ -27,27 +27,23 @@ struct Rendering {
 };
 
 struct Kinematics {
+    float minSpeed;
+    float maxSpeed;
+    float acceleration;
+    float angularAcceleration;
     raylib::Vector3 velocity;
     float speed;
     float targetSpeed;
-    float minSpeed = -200;
-    float maxSpeed =  200;
-    float acceleration = 15;
-    float angularAcceleration = 10;
 };
 
 struct Physics2D {
-    raylib::Degree heading;
-    raylib::Degree targetHeading;
+    raylib::Degree heading = 0;
+    raylib::Degree targetHeading = 0;
 };
 
 struct Physics3D {
-    raylib::Quaternion rotationQuat;
+    raylib::Quaternion rotationQuat = raylib::Quaternion::Identity();
     raylib::Quaternion targetRotationQuat = raylib::Quaternion::Identity();
-};
-
-struct InputComponent {
-    raylib::BufferedInput inputs;
 };
 
 void DrawSystem(cs381::Scene<>& scene) {
@@ -78,12 +74,13 @@ void DrawSystem(cs381::Scene<>& scene) {
 }
 
 void KinematicsSystem(cs381::Scene<>& scene, float dt) {
+    int i = 0;
     for(auto [kinem, t]: cs381::SceneView<Kinematics, TransformComponent>{scene}) {
         float target = Clamp(kinem.targetSpeed, kinem.minSpeed, kinem.maxSpeed);
         if(kinem.speed < target) kinem.speed += kinem.acceleration * dt;
         else if(kinem.speed > target) kinem.speed -= kinem.acceleration * dt;
         kinem.speed = Clamp(kinem.speed, kinem.minSpeed, kinem.maxSpeed);
-
+        //std::cout << kinem.speed << " <- speed (" << i++ << ") accel -> " << kinem.targetSpeed << std::endl;
         t.position += kinem.velocity * dt;
     }
 }
@@ -96,7 +93,7 @@ void Physics2DSystem(cs381::Scene<>& scene, float dt) {
         return decimal + whole;
     };
 
-    for(auto [phys, kinem]: cs381::SceneView<Physics2D, Kinematics>{scene}) {
+    for(auto [phys, kinem, transform]: cs381::SceneView<Physics2D, Kinematics, TransformComponent>{scene}) {
         float target = AngleClamp(phys.targetHeading);
         float difference = abs(target - phys.heading);
         if(target > phys.heading) {
@@ -111,6 +108,7 @@ void Physics2DSystem(cs381::Scene<>& scene, float dt) {
         raylib::Radian angle = raylib::Degree(phys.heading);
 
         kinem.velocity = raylib::Vector3{cos(angle) * kinem.speed, 0, -sin(angle) * kinem.speed};
+        transform.rotation = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), angle);
     }
 }
 
@@ -125,6 +123,7 @@ void Physics3DSystem(cs381::Scene<>& scene, float dt) {
     for(auto [physics3D, kinematics, transform]: cs381::SceneView<Physics3D, Kinematics, TransformComponent>{scene}) {
         physics3D.rotationQuat = physics3D.rotationQuat.Slerp(physics3D.targetRotationQuat, kinematics.angularAcceleration * dt);
         kinematics.velocity = raylib::Vector3::Left().RotateByQuaternion(physics3D.rotationQuat) * kinematics.speed; // Y-axis is Forward
+        //std::cout << kinematics.speed << " <- speed. quat -> " << physics3D.rotationQuat.GetW() << physics3D.rotationQuat.GetX() << physics3D.rotationQuat.GetY() << physics3D.rotationQuat.GetZ() << std::endl; 
         transform.rotation = physics3D.rotationQuat;
     }
 }
@@ -133,10 +132,9 @@ raylib::Vector3 SelectionSystem(cs381::Scene<>& scene, int& id) {
     raylib::Vector3 selectedPlanePosition;
     int i = 0;
 
-    for(auto [input, rendering, t]: cs381::SceneView<InputComponent, Rendering, TransformComponent>{scene}) {
+    for(auto [rendering, t]: cs381::SceneView<Rendering, TransformComponent>{scene}) {
         if (i == id) {
             rendering.drawBoundingBox = true;
-            input.inputs.PollEvents();
             selectedPlanePosition = t.position;
         }
         else rendering.drawBoundingBox = false;
@@ -146,82 +144,102 @@ raylib::Vector3 SelectionSystem(cs381::Scene<>& scene, int& id) {
     return selectedPlanePosition;
 }
 
-void InputSystem(cs381::Scene<>& scene) {
+void Assign2DInput(cs381::Scene<>& scene, raylib::BufferedInput &inputs, cs381::Entity &e) {
+    Physics2D& physics = scene.GetComponent<Physics2D>(e);
+    Kinematics& kinem = scene.GetComponent<Kinematics>(e);
 
     // Basic kinematic controls
-    for(auto [input, kinem]: cs381::SceneView<InputComponent, Kinematics>{scene}) {
-        input.inputs["forward"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_W), raylib::Button::key(KEY_UP)})
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed += 10;    
-            }).move();
+    inputs["forward"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_W), raylib::Button::key(KEY_UP)})
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed += 10;    
+        }).move();
 
-        input.inputs["back"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_S), raylib::Button::key(KEY_DOWN)})
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed -= 10;
-            }).move();
+    inputs["back"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_S), raylib::Button::key(KEY_DOWN)})
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed -= 10;
+        }).move();
 
-        input.inputs["stop"] =
-            raylib::Action::key(KEY_SPACE)
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed = 0;
-            }).move();
-    }
+    inputs["stop"] =
+        raylib::Action::key(KEY_SPACE)
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed = 0;
+        }).move();
 
     // Basic 2D physics controls
-    for(auto [input, physics]: cs381::SceneView<InputComponent, Physics2D>{scene}) {
-        input.inputs["upheading"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
-                .SetPressedCallback([&physics = physics]{
-                    physics.targetHeading += 10;
-            }).move();
+    inputs["upheading"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
+            .SetPressedCallback([&physics = physics]{
+                physics.targetHeading += 10;
+        }).move();
 
-        input.inputs["backheading"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
-                .SetPressedCallback([&physics = physics]{
-                    physics.targetHeading -= 10;
-            }).move();
-    }
+    inputs["backheading"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
+            .SetPressedCallback([&physics = physics]{
+                physics.targetHeading -= 10;
+        }).move();
+}
+
+void Assign3DInput(cs381::Scene<>& scene, raylib::BufferedInput &inputs, cs381::Entity &e) {
+    Physics3D& physics3D = scene.GetComponent<Physics3D>(e);
+    Kinematics& kinem = scene.GetComponent<Kinematics>(e);
+
+    // Basic kinematic controls
+    inputs["forward"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_W), raylib::Button::key(KEY_UP)})
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed += 10;   
+        }).move();
+
+    inputs["back"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_S), raylib::Button::key(KEY_DOWN)})
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed -= 10;
+        }).move();
+
+    inputs["stop"] =
+        raylib::Action::key(KEY_SPACE)
+            .SetPressedCallback([&kinem = kinem]{
+                kinem.targetSpeed = 0;
+        }).move();
 
     // Basic 3D physics controls
-    for(auto [input, physics3D]: cs381::SceneView<InputComponent, Physics3D>{scene}) {
-        input.inputs["upyaw"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    inputs["upyaw"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), 0.5) * (physics3D.targetRotationQuat);
+        }).move();
 
-        input.inputs["backyaw"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    inputs["backyaw"] =
+        raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), -0.5) * (physics3D.targetRotationQuat);
+        }).move();
 
-        input.inputs["uproll"] =
-            raylib::Action::key(KEY_R)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    inputs["uproll"] =
+        raylib::Action::key(KEY_R)
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), 0.5) * (physics3D.targetRotationQuat);
+        }).move();
 
-        input.inputs["backroll"] =
-            raylib::Action::key(KEY_F)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    inputs["backroll"] =
+        raylib::Action::key(KEY_F)
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), -0.5) * (physics3D.targetRotationQuat);
+        }).move();
 
-        input.inputs["uppitch"] =
-            raylib::Action::key(KEY_Q)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    inputs["uppitch"] =
+        raylib::Action::key(KEY_Q)
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), 0.5) * (physics3D.targetRotationQuat);
+        }).move();
 
-        input.inputs["backpitch"] =
-            raylib::Action::key(KEY_E)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
-    }
+    inputs["backpitch"] =
+        raylib::Action::key(KEY_E)
+            .SetPressedCallback([&physics3D = physics3D]{
+                physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), -0.5) * (physics3D.targetRotationQuat);
+        }).move();
 }
 
 
@@ -240,20 +258,9 @@ int main() {
     raylib::Model ddgModel("../meshes/ddg51.glb");
     raylib::Model shipModel("../meshes/ddg51.glb");
 
-    auto ship = scene.CreateEntity();
-    scene.AddComponent<TransformComponent>(ship) = 
-    {
-        raylib::Vector3(0, 0, 0),
-        raylib::Quaternion::Identity(),
-        raylib::Vector3(1, 1, 1)
-    };
-    scene.AddComponent<Rendering>(ship) = {&shipModel, false};
-    scene.AddComponent<Kinematics>(ship) = {raylib::Vector3{0,0,0}, 0, 0};
-    scene.AddComponent<Physics2D>(ship);
-    scene.AddComponent<InputComponent>(ship);
-
+    raylib::BufferedInput inputs[10];
     for (int i = 0; i < 5; i++) {
-        auto plane = scene.CreateEntity();
+        cs381::Entity plane = scene.CreateEntity();
         scene.AddComponent<TransformComponent>(plane) = 
         {
             raylib::Vector3(80 * i, 10, 0),
@@ -261,13 +268,24 @@ int main() {
             raylib::Vector3(2, 2, 2)
         };
         scene.AddComponent<Rendering>(plane) = {&planeModel, false};
-        scene.AddComponent<Kinematics>(plane) = {raylib::Vector3{0,0,0}, 0, 0};
+        scene.AddComponent<Kinematics>(plane) = {-200, 200, 50, 5};
         scene.AddComponent<Physics3D>(plane);
-        scene.AddComponent<InputComponent>(plane);
+        Assign3DInput(scene, inputs[i], plane);
     }
 
-    // Set up input bindings for all entities
-    InputSystem(scene);
+    for (int i = 0; i < 5; i++) {
+        auto ship = scene.CreateEntity();
+        scene.AddComponent<TransformComponent>(ship) = 
+        {
+            raylib::Vector3(80 * i, 0, 0),
+            raylib::Quaternion::FromEuler(180, 0, 0),
+            raylib::Vector3(1, 1, 1)
+        };
+        scene.AddComponent<Rendering>(ship) = {&shipModel, false};
+        scene.AddComponent<Kinematics>(ship) = {-100, 100, 50, 100};
+        scene.AddComponent<Physics2D>(ship);
+        Assign2DInput(scene, inputs[i+4], ship);
+    }
 
 	// Create camera
 	auto camera = raylib::Camera(
@@ -299,12 +317,12 @@ int main() {
     int selector = 0;
 
     // Listen for TAB key
-    raylib::BufferedInput inputs;
-    inputs["next"] = 
+    raylib::BufferedInput selectInput;
+    selectInput["next"] = 
         raylib::Action::key(KEY_TAB)
             .SetPressedCallback([&selector = selector]{
                 selector++;
-                selector %= 5;
+                selector %= 8;
     }).move();
 
 	// Main loop
@@ -312,9 +330,10 @@ int main() {
 	while(!window.ShouldClose() && keepRunning) {
         
         // Update variables
-        Physics2DSystem(scene, window.GetFrameTime());
-        Physics3DSystem(scene, window.GetFrameTime());
-        KinematicsSystem(scene, window.GetFrameTime());
+        float fp = window.GetFrameTime();
+        KinematicsSystem(scene, fp);
+        Physics2DSystem(scene, fp);
+        Physics3DSystem(scene, fp);
 
 		// Rendering
 		{
@@ -329,7 +348,8 @@ int main() {
                 DrawSystem(scene);
 
                 // Poll events
-                inputs.PollEvents();
+                selectInput.PollEvents();
+                inputs[selector].PollEvents();
                 raylib::Vector3 pos = SelectionSystem(scene, selector);
 
                 // EXTRA CREDIT: Camera pans toward target
