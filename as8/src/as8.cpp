@@ -27,22 +27,22 @@ struct Rendering {
 };
 
 struct Kinematics {
-    raylib::Vector3 velocity;
-    float speed;
-    float targetSpeed;
     float minSpeed = -200;
     float maxSpeed =  200;
     float acceleration = 15;
     float angularAcceleration = 10;
+    raylib::Vector3 velocity = {0,0,0};
+    float speed = 0;
+    float targetSpeed = 0;
 };
 
 struct Physics2D {
-    raylib::Degree heading;
-    raylib::Degree targetHeading;
+    raylib::Degree heading = 0;
+    raylib::Degree targetHeading = 0;
 };
 
 struct Physics3D {
-    raylib::Quaternion rotationQuat;
+    raylib::Quaternion rotationQuat = raylib::Quaternion::Identity();
     raylib::Quaternion targetRotationQuat = raylib::Quaternion::Identity();
 };
 
@@ -96,7 +96,7 @@ void Physics2DSystem(cs381::Scene<>& scene, float dt) {
         return decimal + whole;
     };
 
-    for(auto [phys, kinem]: cs381::SceneView<Physics2D, Kinematics>{scene}) {
+    for(auto [phys, kinem, transform]: cs381::SceneView<Physics2D, Kinematics, TransformComponent>{scene}) {
         float target = AngleClamp(phys.targetHeading);
         float difference = abs(target - phys.heading);
         if(target > phys.heading) {
@@ -108,9 +108,12 @@ void Physics2DSystem(cs381::Scene<>& scene, float dt) {
         } 
         if(difference < .5) phys.heading = target; // If the heading is really close to correct 
         phys.heading = AngleClamp(phys.heading);
+        phys.targetHeading = AngleClamp(phys.targetHeading);
         raylib::Radian angle = raylib::Degree(phys.heading);
+        raylib::Radian angle2 = raylib::Degree(phys.targetHeading-phys.heading);
 
         kinem.velocity = raylib::Vector3{cos(angle) * kinem.speed, 0, -sin(angle) * kinem.speed};
+        transform.rotation = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), angle);
     }
 }
 
@@ -126,6 +129,9 @@ void Physics3DSystem(cs381::Scene<>& scene, float dt) {
         physics3D.rotationQuat = physics3D.rotationQuat.Slerp(physics3D.targetRotationQuat, kinematics.angularAcceleration * dt);
         kinematics.velocity = raylib::Vector3::Left().RotateByQuaternion(physics3D.rotationQuat) * kinematics.speed; // Y-axis is Forward
         transform.rotation = physics3D.rotationQuat;
+        //std::cout << transform.position.x << ", ";
+        //std::cout << transform.position.y << ", ";
+        //std::cout << transform.position.z << std::endl;
     }
 }
 
@@ -238,30 +244,54 @@ int main() {
     cs381::Scene<> scene;
     raylib::Model planeModel("../meshes/PolyPlane.glb");
     raylib::Model ddgModel("../meshes/ddg51.glb");
+    raylib::Model tankerModel("../meshes/OilTanker.glb");
+    raylib::Model cargoModel("../meshes/CargoG_HOSBrigadoon.glb");
+    raylib::Model orientModel("../meshes/OrientExplorer.glb");
+    raylib::Model tugboatModel("../meshes/ddg51.glb");
     raylib::Model shipModel("../meshes/ddg51.glb");
 
-    auto ship = scene.CreateEntity();
-    scene.AddComponent<TransformComponent>(ship) = 
-    {
-        raylib::Vector3(0, 0, 0),
-        raylib::Quaternion::Identity(),
+    auto ddg = scene.CreateEntity();
+    scene.AddComponent<Rendering>(ddg) = {&ddgModel, false};
+    auto tanker = scene.CreateEntity();
+    scene.AddComponent<Rendering>(tanker) = {&tankerModel, false};
+    auto cargo = scene.CreateEntity();
+    scene.AddComponent<Rendering>(cargo) = {&cargoModel, false};
+    auto orient = scene.CreateEntity();
+    scene.AddComponent<Rendering>(orient) = {&orientModel, false};
+    auto tugboat = scene.CreateEntity();
+    scene.AddComponent<Rendering>(tugboat) = {&tugboatModel, false};
+    cs381::Entity ships[5] = {ddg, tanker, cargo, orient, tugboat};
+    raylib::Vector3 scales[5] = {
+        raylib::Vector3(1, 1, 1),
+        raylib::Vector3(.005, .005, .005),
+        raylib::Vector3(.01, .01, .01),
+        raylib::Vector3(.01, .01, .01),
         raylib::Vector3(1, 1, 1)
     };
-    scene.AddComponent<Rendering>(ship) = {&shipModel, false};
-    scene.AddComponent<Kinematics>(ship) = {raylib::Vector3{0,0,0}, 0, 0};
-    scene.AddComponent<Physics2D>(ship);
-    scene.AddComponent<InputComponent>(ship);
 
     for (int i = 0; i < 5; i++) {
+        scene.AddComponent<TransformComponent>(ships[i]) = 
+        {
+            raylib::Vector3(80 * i, 20, 0),
+            raylib::Quaternion::FromEuler(90,90,0),
+            scales[i]
+        };
+        scene.AddComponent<Kinematics>(ships[i]) = {float(-(i+5)*5), float((i+5)*5), float(10 * (i+1)), float(50 - 5 * (i))};
+        scene.AddComponent<Physics2D>(ships[i]);
+        scene.AddComponent<InputComponent>(ships[i]);
+    }
+
+    for (int j = 0; j < 5; j++) {
         auto plane = scene.CreateEntity();
         scene.AddComponent<TransformComponent>(plane) = 
         {
-            raylib::Vector3(80 * i, 10, 0),
+            raylib::Vector3(80 * j, 50, 0),
             raylib::Quaternion::Identity(),
             raylib::Vector3(2, 2, 2)
         };
         scene.AddComponent<Rendering>(plane) = {&planeModel, false};
-        scene.AddComponent<Kinematics>(plane) = {raylib::Vector3{0,0,0}, 0, 0};
+        scene.AddComponent<Kinematics>(plane) = {float(-(j+5)*6), float((j+5)*6), float(10 * (j+5)), float(55 - 5 * (j + 5))};
+        scene.AddComponent<Kinematics>(plane);
         scene.AddComponent<Physics3D>(plane);
         scene.AddComponent<InputComponent>(plane);
     }
@@ -304,7 +334,7 @@ int main() {
         raylib::Action::key(KEY_TAB)
             .SetPressedCallback([&selector = selector]{
                 selector++;
-                selector %= 5;
+                selector %= 10;
     }).move();
 
 	// Main loop
@@ -312,9 +342,10 @@ int main() {
 	while(!window.ShouldClose() && keepRunning) {
         
         // Update variables
-        Physics2DSystem(scene, window.GetFrameTime());
-        Physics3DSystem(scene, window.GetFrameTime());
-        KinematicsSystem(scene, window.GetFrameTime());
+        float dt = window.GetFrameTime();
+        KinematicsSystem(scene, dt);
+        Physics2DSystem(scene, dt);
+        Physics3DSystem(scene, dt);
 
 		// Rendering
 		{
