@@ -1,11 +1,11 @@
 extends Control
 
-@onready var game = $"../Game"
-@onready var address_entry = $PanelContainer/VBoxContainer/IPAddress
-@onready var label = $"../Game/Label"
+@onready var game : Control = $"../Game"
+@onready var address_entry : VBoxContainer = $PanelContainer/VBoxContainer/IPAddress
+@onready var label : Label = $"../Game/Label"
 
-const PORT = 6420
-var peer = ENetMultiplayerPeer.new()
+const PORT : int = 6420
+var peer : ENetMultiplayerPeer = ENetMultiplayerPeer.new()
 
 func buttonCommon():
 	hide()
@@ -26,10 +26,10 @@ func _on_join_button_pressed():
 	peer.create_client(address_entry.text, PORT)
 	multiplayer.multiplayer_peer = peer
 	
-func addPlayer(peer_id):
+func addPlayer(peer_id: int):
 	print(peer_id)
 	pass
 
-func removePlayer(peer_id):
+func removePlayer(peer_id: int):
 	print("ded")
 	pass

@@ -30,8 +30,10 @@ script = ExtResource("2_md2fd")
 
 [node name="HostMenu" type="Control" parent="."]
 anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_left = 24.0
+offset_top = 64.0
+offset_right = 64.0
+offset_bottom = 104.0
 script = ExtResource("1_bd0yp")
 
 [node name="PanelContainer" type="PanelContainer" parent="HostMenu"]
