@@ -5,278 +5,293 @@
 #include <iostream>
 #include <BufferedInput.hpp>
 #include "ECS.hpp"
+#include <iostream>
+using namespace std;
 
-template<typename T>
-concept Transformer = requires(T t, raylib::Transform m) {
-	{ t.operator()(m) } -> std::convertible_to<raylib::Transform>;
-};
-
-void DrawBoundedModel(raylib::Model& model, Transformer auto transformer);
-void DrawModel(raylib::Model& model, Transformer auto transformer); 
+void SetImageTexture(string, Texture2D&);
 
 struct TransformComponent {
-    raylib::Vector3 position;
-    raylib::Quaternion rotation;
-    raylib::Vector3 scale;
+    Rectangle source;
+    Rectangle dest;
+    float posX;
+    float posY;
+    Vector2 origin; // anchor to middle of rect (assume square with w=100, h=100)
+    float rotation = 0;
 };
 
 struct Rendering {
-    raylib::Model* model;
-    bool drawBoundingBox = false;
-};
-
-struct Kinematics {
-    float minSpeed = -200;
-    float maxSpeed =  200;
-    float acceleration = 15;
-    float angularAcceleration = 10;
-    raylib::Vector3 velocity = {0,0,0};
-    float speed = 0;
-    float targetSpeed = 0;
-};
-
-struct Physics2D {
-    raylib::Degree heading = 0;
-    raylib::Degree targetHeading = 0;
-};
-
-struct Physics3D {
-    raylib::Quaternion rotationQuat = raylib::Quaternion::Identity();
-    raylib::Quaternion targetRotationQuat = raylib::Quaternion::Identity();
+    Color color;
+    Texture2D texture;
 };
 
 struct InputComponent {
     raylib::BufferedInput inputs;
 };
 
+struct CardComponent {
+    bool isPlayerTurn;
+
+    string value;
+    string suit;
+    int numAttempts;
+
+    bool operator==(CardComponent& rhs) {
+        return rhs.value == value;
+    }
+};
+
+struct PlayerComponent {
+    int id;
+    cs381::Entity cards[52];
+    int numCards;
+};
+
+struct Player1TagComponent {};
+struct Player2TagComponent {};
+struct Player3TagComponent {};
+struct Player4TagComponent {};
+
+struct DeckTagComponent {};
+
+struct DeckComponent {
+    cs381::Entity cards[52];
+    int numCards;
+};
+
+struct TextComponent {
+    string text;
+    int fontSize;
+};
+
 void DrawSystem(cs381::Scene<>& scene) {
-    // SYNTACTICAL SUGAR!
-    // for (auto x: someArray) {}
-    // auto&& begin = someArray.begin; (SceneView<...>::Iterator&&)
-    // auto&& end = someArray.end; (SceneView<...>::Sentinel&&)
-    // for (; begin != end; begin++) { auto x = *begin; }
-    // uses iterators: class that behaves like a pointer, pointer with extra functionality
-
     for(auto [rendering, transform]: cs381::SceneView<Rendering, TransformComponent>{scene}) {
-        auto [axis, angle] = transform.rotation.ToAxisAngle();
-        auto transformer = [transform = transform, axis = axis, angle = angle](raylib::Transform t) -> raylib::Transform {
-            return t
-                .Translate(transform.position)
-                .Scale(transform.scale.x,
-                        transform.scale.y,
-                        transform.scale.z)
-                .Rotate(axis, angle);
-        };
+        DrawTexturePro(rendering.texture,
+                        transform.source,
+                        transform.dest,
+                        transform.origin,
+                        transform.rotation,
+                        rendering.color);
+    }
 
-        if (rendering.model) {
-            if (rendering.drawBoundingBox)
-                DrawBoundedModel(*rendering.model, transformer);
-            else DrawModel(*rendering.model, transformer);
+    for(auto [text, rendering, transform]: cs381::SceneView<TextComponent, Rendering, TransformComponent>{scene}) {
+        DrawText(text.text.c_str(), int(transform.posX), int(transform.posY), text.fontSize, rendering.color);
+    }
+
+    DrawFPS(10, 10);
+}
+
+void CardRandomAssignmentSystem(cs381::Scene<>& scene) {
+    static string suits[4] = {"hearts", "spades", "diamonds", "clubs"};
+    static string values[13] = {"ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king"};
+
+    for(auto [card, _, rendering]: cs381::SceneView<CardComponent, DeckTagComponent, Rendering>{scene}) {
+
+        // Set suit and value randomly
+        string randSuit = suits[GetRandomValue(0, 3)];
+        card.suit = randSuit;
+
+        int randValIndex = GetRandomValue(0, 12);
+        string randVal = values[randValIndex];
+        card.value = values[randValIndex];
+
+        // Set attempt count if face card
+        card.numAttempts = 0;
+        switch (card.value[0])
+        {
+            case 'a':
+                card.numAttempts++;
+            case 'k':
+                card.numAttempts++;
+            case 'q':
+                card.numAttempts++;
+            case 'j':
+                card.numAttempts++;
+                break;
+
+            default:
+                break;
         }
+
+        // Set image of card
+        string filepath = "../cards/card-" + randVal + "-" + randSuit + ".png";
+        cout << "Set card: " << filepath << endl;
+        SetImageTexture(filepath, rendering.texture);
     }
 }
 
-void KinematicsSystem(cs381::Scene<>& scene, float dt) {
-    for(auto [kinem, t]: cs381::SceneView<Kinematics, TransformComponent>{scene}) {
-        float target = Clamp(kinem.targetSpeed, kinem.minSpeed, kinem.maxSpeed);
-        if(kinem.speed < target) kinem.speed += kinem.acceleration * dt;
-        else if(kinem.speed > target) kinem.speed -= kinem.acceleration * dt;
-        kinem.speed = Clamp(kinem.speed, kinem.minSpeed, kinem.maxSpeed);
-
-        t.position += kinem.velocity * dt;
+void TextUpdateSystem(cs381::Scene<>& scene) {
+    for (auto [player, text] : cs381::SceneView<PlayerComponent, TextComponent>{scene}) {
+        text.text = to_string(player.numCards);
     }
 }
 
-void Physics2DSystem(cs381::Scene<>& scene, float dt) {
-    static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree {
-        float decimal = float(angle) - int(angle);
-        int whole = int(angle) % 360;
-        whole += (whole < 0) * 360;
-        return decimal + whole;
-    };
+bool CheckSlap(DeckComponent, PlayerComponent, cs381::Scene<>&);
 
-    for(auto [phys, kinem, transform]: cs381::SceneView<Physics2D, Kinematics, TransformComponent>{scene}) {
-        float target = AngleClamp(phys.targetHeading);
-        float difference = abs(target - phys.heading);
-        if(target > phys.heading) {
-            if(difference < 180) phys.heading += kinem.angularAcceleration * dt;
-            else if(difference > 180) phys.heading -= kinem.angularAcceleration * dt;
-        } else if(target < phys.heading) {
-            if(difference < 180) phys.heading -= kinem.angularAcceleration * dt;
-            else if(difference > 180) phys.heading += kinem.angularAcceleration * dt;
-        } 
-        if(difference < .5) phys.heading = target; // If the heading is really close to correct 
-        phys.heading = AngleClamp(phys.heading);
-        phys.targetHeading = AngleClamp(phys.targetHeading);
-        raylib::Radian angle = raylib::Degree(phys.heading);
-        raylib::Radian angle2 = raylib::Degree(phys.targetHeading-phys.heading);
+bool MouseClickSystem(cs381::Scene<>& scene, PlayerComponent currentPlayer) {
+    Vector2 mousePos = GetMousePosition();
+    
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        cout << "Clicked at " << mousePos.x << ", " << mousePos.y << endl;
 
-        kinem.velocity = raylib::Vector3{cos(angle) * kinem.speed, 0, -sin(angle) * kinem.speed};
-        transform.rotation = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), angle);
-    }
-}
-
-void Physics3DSystem(cs381::Scene<>& scene, float dt) {
-    static constexpr auto AngleClamp = [](raylib::Degree angle) -> raylib::Degree {
-        float decimal = float(angle) - int(angle);
-        int whole = int(angle) % 360;
-        whole += (whole < 0) * 360;
-        return decimal + whole;
-    };
-
-    for(auto [physics3D, kinematics, transform]: cs381::SceneView<Physics3D, Kinematics, TransformComponent>{scene}) {
-        physics3D.rotationQuat = physics3D.rotationQuat.Slerp(physics3D.targetRotationQuat, kinematics.angularAcceleration * dt);
-        kinematics.velocity = raylib::Vector3::Left().RotateByQuaternion(physics3D.rotationQuat) * kinematics.speed; // Y-axis is Forward
-        transform.rotation = physics3D.rotationQuat;
-        //std::cout << transform.position.x << ", ";
-        //std::cout << transform.position.y << ", ";
-        //std::cout << transform.position.z << std::endl;
-    }
-}
-
-raylib::Vector3 SelectionSystem(cs381::Scene<>& scene, int& id) {
-    raylib::Vector3 selectedPlanePosition;
-    int i = 0;
-
-    for(auto [input, rendering, t]: cs381::SceneView<InputComponent, Rendering, TransformComponent>{scene}) {
-        if (i == id) {
-            rendering.drawBoundingBox = true;
-            input.inputs.PollEvents();
-            selectedPlanePosition = t.position;
+        // Clicked deck
+        for (auto [deck, _, transform] : cs381::SceneView<DeckComponent, InputComponent, TransformComponent>{scene}) {
+            if (CheckCollisionPointRec(mousePos, transform.dest)) {
+                cout << "Deck was clicked" << endl;
+                CheckSlap(deck, currentPlayer, scene);
+            }
         }
-        else rendering.drawBoundingBox = false;
-        i++;
-    }
 
-    return selectedPlanePosition;
+        for (auto [player, _, transform] : cs381::SceneView<PlayerComponent, InputComponent, TransformComponent>{scene}) {
+            if (currentPlayer.id == player.id && CheckCollisionPointRec(mousePos, transform.dest)) {
+                cout << "Player clicked own hand" << endl;
+                // Place player card onto deck
+                for (auto [deck] : cs381::SceneView<DeckComponent>{scene}) {
+                    if (player.numCards > 0) {
+                        deck.cards[deck.numCards] = player.cards[player.numCards];
+                        deck.numCards++;
+                        player.numCards--;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+    
+
+    // for (auto [input, transform] : cs381::SceneView<InputComponent, TransformComponent>{scene}) {
+    //     input.inputs["click"] =
+    //     raylib::Action::mouse_button(MOUSE_BUTTON_LEFT)
+    //         .SetPressedCallback([&mousePos = mousePos, &transform = transform]{
+    //             if (CheckCollisionPointRec(mousePos, transform.dest)) {
+    //                 cout << "YEP: " << transform.dest.x << ", " << transform.dest.y << endl;
+    //             }
+    //     }).move();
+    // }
 }
 
-void InputSystem(cs381::Scene<>& scene) {
+bool CheckSlap(DeckComponent deck, PlayerComponent player, cs381::Scene<>& scene) {
+    if (deck.numCards < 3) return false;
+    CardComponent topCard = scene.GetComponent<CardComponent>(deck.cards[deck.numCards]);
+    CardComponent secondTopCard = scene.GetComponent<CardComponent>(deck.cards[deck.numCards - 1]);
+    CardComponent thirdTopCard = scene.GetComponent<CardComponent>(deck.cards[deck.numCards - 2]);
 
-    // Basic kinematic controls
-    for(auto [input, kinem]: cs381::SceneView<InputComponent, Kinematics>{scene}) {
-        input.inputs["forward"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_W), raylib::Button::key(KEY_UP)})
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed += 10;    
-            }).move();
-
-        input.inputs["back"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_S), raylib::Button::key(KEY_DOWN)})
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed -= 10;
-            }).move();
-
-        input.inputs["stop"] =
-            raylib::Action::key(KEY_SPACE)
-                .SetPressedCallback([&kinem = kinem]{
-                    kinem.targetSpeed = 0;
-            }).move();
-    }
-
-    // Basic 2D physics controls
-    for(auto [input, physics]: cs381::SceneView<InputComponent, Physics2D>{scene}) {
-        input.inputs["upheading"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
-                .SetPressedCallback([&physics = physics]{
-                    physics.targetHeading += 10;
-            }).move();
-
-        input.inputs["backheading"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
-                .SetPressedCallback([&physics = physics]{
-                    physics.targetHeading -= 10;
-            }).move();
-    }
-
-    // Basic 3D physics controls
-    for(auto [input, physics3D]: cs381::SceneView<InputComponent, Physics3D>{scene}) {
-        input.inputs["upyaw"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_A), raylib::Button::key(KEY_LEFT)})
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
-
-        input.inputs["backyaw"] =
-            raylib::Action::button_set( {raylib::Button::key(KEY_D), raylib::Button::key(KEY_RIGHT)})
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Up(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
-
-        input.inputs["uproll"] =
-            raylib::Action::key(KEY_R)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
-
-        input.inputs["backroll"] =
-            raylib::Action::key(KEY_F)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Left(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
-
-        input.inputs["uppitch"] =
-            raylib::Action::key(KEY_Q)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), 0.5) * (physics3D.targetRotationQuat);
-            }).move();
-
-        input.inputs["backpitch"] =
-            raylib::Action::key(KEY_E)
-                .SetPressedCallback([&physics3D = physics3D]{
-                    physics3D.targetRotationQuat = raylib::Quaternion::FromAxisAngle(raylib::Vector3::Forward(), -0.5) * (physics3D.targetRotationQuat);
-            }).move();
+    // Check double
+    if (topCard == secondTopCard || topCard == thirdTopCard) {
+        return true;
     }
 }
-
 
 ///////////////////////////////////////////////////////////////////////////
 // MAIN AREA //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////
 
 int main() {
-	// Create window
-	const int screenWidth = 800;
-	const int screenHeight = 450;
-	raylib::Window window(screenWidth, screenHeight, "CS381 - Assignment 9");
+    // Create window
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+    raylib::Window window(screenWidth, screenHeight, "CS381 - Assignment 9");
 
     cs381::Scene<> scene;
 
-    // Set up input bindings for all entities
-    InputSystem(scene);
+    // Define game params
+    int numCards = 52;
+    int numPlayers = 4;
 
-	// Create camera
-	auto camera = raylib::Camera(
-		raylib::Vector3(0, 120, -500), // Position
-		raylib::Vector3(0, 0, 300), // Target
-		raylib::Vector3::Up(), // Up direction
-		30.0f,
-		CAMERA_PERSPECTIVE
-	);
+    // Create camera
+    raylib::Camera2D camera(
+        raylib::Vector2(0, 0), // position
+        raylib::Vector2(0, 0)  // target
+    );
 
-    // EXTRA CREDIT: Play audio (wind howling, plane noises)
+    // Create deck
+    auto deck = scene.CreateEntity();
+    Texture2D deckTexture;
+    SetImageTexture("../icons/card-draw.png", deckTexture);
+    Rectangle deckSource = { 0, 0, (float)deckTexture.width, (float)deckTexture.height };
+    Rectangle deckRect = { screenWidth / 2 - 50, screenHeight / 2 - 50, deckSource.width, deckSource.height };
+    scene.AddComponent<Rendering>(deck) = {GRAY, deckTexture};
+    scene.AddComponent<TransformComponent>(deck) = {deckSource, deckRect};
+    DeckComponent& deckData = scene.AddComponent<DeckComponent>(deck);
+    scene.AddComponent<InputComponent>(deck);
+
+    // Create cards
+    for (int i = 0; i < numCards; i++)
+    {
+        auto card = scene.CreateEntity();
+        deckData.cards[i] = card;
+        scene.AddComponent<Rendering>(card) = {WHITE};
+        scene.AddComponent<CardComponent>(card);
+        scene.AddComponent<DeckTagComponent>(card);
+
+        Rectangle source = {0.0, 0.0, 100.0, 100.0};
+        Rectangle dest = {float((15 * i) - (0.5 * screenWidth)), 0.0, 100.0, 100.0};
+        scene.AddComponent<TransformComponent>(card) = {source, dest};
+    }
+    CardRandomAssignmentSystem(scene);
+    cout << "Card assignment complete" << endl << endl;
+
+    // Create players
+    Color playerColors[4] = {RED, BLUE, GREEN, YELLOW};
+    float anchorX[4] = {0.20, 0.20, 0.80, 0.80};
+    float anchorY[4] = {0.20, 0.80, 0.20, 0.80};
+    cs381::Entity players[4];
+
+    for (int i = 0; i < numPlayers; i++)
+    {
+        auto player = scene.CreateEntity();
+        players[i] = player;
+        scene.AddComponent<Rendering>(player) = {playerColors[i], deckTexture};
+        scene.AddComponent<PlayerComponent>(player) = {i};
+        scene.AddComponent<InputComponent>(player);
+
+        Rectangle source = {0.0, 0.0, 100.0, 100.0};
+        float destWidth = screenWidth * anchorX[i] - 50;
+        float destHeight = screenHeight * anchorY[i] - 50;
+        Rectangle dest = {destWidth, destHeight, 100.0, 100.0};
+        cout << "Create player at: " << destWidth << ", " << destHeight << endl;
+        scene.AddComponent<TransformComponent>(player) = {source, dest, destWidth, destHeight};
+        scene.AddComponent<TextComponent>(player) = {"0", 15};
+    }
+
+    // Assign cards to players
+    for (auto [player] : cs381::SceneView<PlayerComponent>{scene}) {
+        for (int i = 0; i < floor(numCards / numPlayers); i++) {
+            player.cards[i] = deckData.cards[deckData.numCards];
+            deckData.numCards--;
+        }
+        player.numCards = floor(numCards / numPlayers);
+        deckData.numCards = 0;
+    }
+
+    // Play audio
     InitAudioDevice();
-    raylib::Sound mus_PlaneBG("../audio/air-raid.mp3");
-    raylib::Sound sfx_PlaneFlap("../audio/flap.wav");
-    mus_PlaneBG.Play();
-
-    // Select selectable entity by ID
-    int selector = 0;
-
-    // Listen for TAB key
-    raylib::BufferedInput inputs;
-    inputs["next"] = 
-        raylib::Action::key(KEY_TAB)
-            .SetPressedCallback([&selector = selector]{
-                selector++;
-                selector %= 10;
-    }).move();
+    raylib::Sound mus_BG("../audio/bg.mp3");
+    mus_BG.Play();
 
 	// Main loop
 	bool keepRunning = true;
+    int currentPlayerIndex = -1;
+    float delay = 3;
+    float timer = 0;
 	while(!window.ShouldClose() && keepRunning) {
-        
-        // Update variables
+        timer += window.GetFrameTime();
+        if (timer > delay) {
+            timer = 0;
+            currentPlayerIndex++;
+            currentPlayerIndex %= numPlayers;
+            cout << "Current player: Player " << currentPlayerIndex << endl;
+        }
+
+        for (auto [player] : cs381::SceneView<PlayerComponent>{scene}) {
+            if (player.id == currentPlayerIndex) {
+                if (MouseClickSystem(scene, player)) {
+                    scene.GetComponent<TransformComponent>(deckData.cards[deckData.numCards-1]).dest = deckRect; 
+                };
+                TextUpdateSystem(scene);
+            }
+        }
 
 		// Rendering
 		{
@@ -286,18 +301,8 @@ int main() {
 			camera.BeginMode();
 			{
                 DrawSystem(scene);
-
-                // Poll events
-                inputs.PollEvents();
-                //raylib::Vector3 pos = SelectionSystem(scene, selector);
-
-                // EXTRA CREDIT: Camera pans toward target
-                //camera.SetTarget(pos);
 			}
 			camera.EndMode();
-
-			// Measure our FPS
-			DrawFPS(10, 10);
 		}
 		window.EndDrawing();
 	}
@@ -305,9 +310,9 @@ int main() {
 	return 0;
 }
 
-void DrawModel(raylib::Model& model, Transformer auto transformer) {
-    raylib::Transform backupTransform = model.transform;
-    model.transform = transformer(backupTransform);
-    model.Draw({});
-    model.transform = backupTransform;
+void SetImageTexture(string filepath, Texture2D& texture) {
+    Image sprite = LoadImage(filepath.c_str());
+    ImageResize(&sprite, 100, 100);
+    texture = LoadTextureFromImage(sprite);
+    UnloadImage(sprite);
 }

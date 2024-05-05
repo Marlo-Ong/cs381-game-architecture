@@ -1,0 +1,2 @@
+/Library/Developer/CommandLineTools/usr/bin/ar qc libbuffered-raylib.a "CMakeFiles/buffered-raylib.dir/src/BufferedInput.cpp.o"
+/Library/Developer/CommandLineTools/usr/bin/ranlib libbuffered-raylib.a

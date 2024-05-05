@@ -1,0 +1,2 @@
+/Library/Developer/CommandLineTools/usr/bin/ar qc liblibfastsignals.a CMakeFiles/libfastsignals.dir/src/connection.cpp.o CMakeFiles/libfastsignals.dir/src/function_detail.cpp.o CMakeFiles/libfastsignals.dir/src/signal_impl.cpp.o
+/Library/Developer/CommandLineTools/usr/bin/ranlib liblibfastsignals.a

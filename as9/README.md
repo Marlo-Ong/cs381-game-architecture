@@ -52,3 +52,42 @@ In order to run this assignment:
 - If a plane is selected, press E to move it downward.
 
 - Press SPACE to smoothly stop the selected vehicle.
+
+## Description of criterion
+
+- **Must be implemented using DOECS**:
+   - Is implemented using DOECS
+
+- **Must be interactable**:
+   - Can use mouse to interact with objects
+
+- **Must Draw Model or Play Sound**:
+   - Plays background music and SFX :)
+
+- **Must Display Text**:
+   - Displays "Hello world" on start screen
+
+- **Description of criterion**:
+   - Describes criterion
+
+- **Window named AS9**:
+   - The window is named AS9
+
+- **Minimum 2 System not Proposed in Class**:
+   - System 1:
+   - System 2:
+
+- **Read Me (with Pictures)**:
+   - The README has pictures
+
+- **EC: Grade Yourself**
+   - I will get a 100% as my assignment fulfills all the requirements of the criterion :)
+
+- **EC: Additional Systems**
+   - Additional system:
+
+- **EC: Must be custom made**
+   - +5 sound
+
+- **EC: Must respond to mouse**
+   - Responds to mouse
