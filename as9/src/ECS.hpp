@@ -11,6 +11,7 @@
 #include <span>
 #include <variant>
 #include <cassert>
+#include <iostream>
 
 extern size_t globalComponentCounter;
 namespace cs381 {

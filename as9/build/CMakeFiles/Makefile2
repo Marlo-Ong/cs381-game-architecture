@@ -246,10 +246,10 @@ raylib-cpp/raylib/raylib/external/glfw/src/clean: raylib-cpp/raylib/raylib/exter
 # Target rules for target CMakeFiles/as9.dir
 
 # All Build rule for target.
-CMakeFiles/as9.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 CMakeFiles/as9.dir/all: raylib-cpp/raylib/raylib/external/glfw/src/CMakeFiles/glfw.dir/all
 CMakeFiles/as9.dir/all: raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all
 CMakeFiles/as9.dir/all: raylib-cpp/BufferedRaylib/FastSignals/libfastsignals/CMakeFiles/libfastsignals.dir/all
+CMakeFiles/as9.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/as9.dir/build.make CMakeFiles/as9.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/as9.dir/build.make CMakeFiles/as9.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/Users/moon/Docs/Code/cs381-game-architecture/as9/build/CMakeFiles --progress-num=1,2,3 "Built target as9"
@@ -353,9 +353,9 @@ raylib-cpp/raylib/raylib/external/glfw/src/CMakeFiles/update_mappings.dir/clean:
 # Target rules for target raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir
 
 # All Build rule for target.
-raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all: raylib-cpp/raylib/raylib/external/glfw/src/CMakeFiles/glfw.dir/all
 raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all: raylib-cpp/BufferedRaylib/FastSignals/libfastsignals/CMakeFiles/libfastsignals.dir/all
+raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 	$(MAKE) $(MAKESILENT) -f raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/build.make raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/depend
 	$(MAKE) $(MAKESILENT) -f raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/build.make raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/Users/moon/Docs/Code/cs381-game-architecture/as9/build/CMakeFiles --progress-num=4,5 "Built target buffered-raylib"
@@ -381,10 +381,10 @@ raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/clean:
 # Target rules for target raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir
 
 # All Build rule for target.
-raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/all: raylib-cpp/raylib/raylib/external/glfw/src/CMakeFiles/glfw.dir/all
 raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/all: raylib-cpp/BufferedRaylib/CMakeFiles/buffered-raylib.dir/all
 raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/all: raylib-cpp/BufferedRaylib/FastSignals/libfastsignals/CMakeFiles/libfastsignals.dir/all
+raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/all: raylib-cpp/raylib/raylib/CMakeFiles/raylib.dir/all
 	$(MAKE) $(MAKESILENT) -f raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/build.make raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/depend
 	$(MAKE) $(MAKESILENT) -f raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/build.make raylib-cpp/BufferedRaylib/CMakeFiles/tst.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/Users/moon/Docs/Code/cs381-game-architecture/as9/build/CMakeFiles --progress-num=40,41 "Built target tst"
