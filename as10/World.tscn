@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3 uid="uid://7fy2oo82j8lp"]
+[gd_scene load_steps=4 format=3 uid="uid://piw86mmtixt8"]
 
 [ext_resource type="Script" path="res://networking.gd" id="1_bd0yp"]
 [ext_resource type="Script" path="res://RemoteLabel.gd" id="2_md2fd"]
@@ -17,7 +17,6 @@ visible = false
 anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
-script = ExtResource("1_ljvb8")
 
 [node name="PlayersDisplay" type="Label" parent="Game"]
 layout_mode = 2
